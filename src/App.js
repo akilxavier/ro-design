@@ -116,7 +116,11 @@ const App = () => {
   const [projectNotes, setProjectNotes] = useState(""); 
   const [waterData, setWaterData] = useState({
     projectName: 'New_Project_V3',
+    clientName: '',
+    calculatedBy: '',
+    pretreatment: 'Conventional',
     waterType: 'Well Water',
+    calculatedTds: 0,
     temp: 25, ph: 7.5, ca: 60, mg: 20, na: 250, k: 15,
     hco3: 250, so4: 100, cl: 300, no3: 25, sio2: 20,
     nh4: 0, sr: 0, ba: 0, po4: 0, f: 0, b: 0, co2: 0, co3: 0
@@ -530,6 +534,7 @@ const App = () => {
       designWarnings: calcResults?.designWarnings || [],
 
       permeateConcentration,
+      concentrateConcentration,
       concentrateSaturation,
       concentrateParameters,
       permeateParameters
@@ -597,6 +602,243 @@ const App = () => {
     link.click();
   };
 
+  const handlePrintDesignReport = () => {
+    if (!projection) return;
+    const unit = systemConfig.flowUnit || 'gpm';
+    const feedPh = Number(systemConfig.feedPh) || Number(waterData.ph) || 7.0;
+    const tempF = ((Number(waterData.temp) || 25) * 9) / 5 + 32;
+    const reportDate = new Date().toLocaleDateString();
+    const M3H_TO_GPM = 4.402867;
+    const ionFeed = {
+      na: Number(waterData.na) || 0,
+      hco3: Number(waterData.hco3) || 0,
+      cl: Number(waterData.cl) || 0,
+      co2: Number(waterData.co2) || 0,
+      nh4: Number(waterData.nh4) || 0
+    };
+    const permIons = projection.permeateConcentration || {};
+    const concIons = projection.concentrateConcentration || {};
+    const sumTds = (obj) => Object.values(obj).reduce((sum, val) => sum + (Number(val) || 0), 0);
+    const rawTds = sumTds({
+      ca: Number(waterData.ca) || 0,
+      mg: Number(waterData.mg) || 0,
+      na: Number(waterData.na) || 0,
+      k: Number(waterData.k) || 0,
+      sr: Number(waterData.sr) || 0,
+      ba: Number(waterData.ba) || 0,
+      hco3: Number(waterData.hco3) || 0,
+      so4: Number(waterData.so4) || 0,
+      cl: Number(waterData.cl) || 0,
+      no3: Number(waterData.no3) || 0,
+      sio2: Number(waterData.sio2) || 0,
+      po4: Number(waterData.po4) || 0,
+      f: Number(waterData.f) || 0,
+      b: Number(waterData.b) || 0,
+      co2: Number(waterData.co2) || 0,
+      co3: Number(waterData.co3) || 0,
+      nh4: Number(waterData.nh4) || 0
+    });
+    const permTds = Number(projection?.permeateParameters?.tds ?? 0);
+    const concTds = Number(projection?.concentrateParameters?.tds ?? 0);
+    const permPh = Number(projection?.permeateParameters?.ph ?? feedPh);
+    const concPh = Number(projection?.concentrateParameters?.ph ?? feedPh);
+    const econdFactor = 1.9095;
+    const toEcond = (value) => Math.round((Number(value) || 0) * econdFactor);
+    const stageRows = (projection.stageResults || []).map((row) => {
+      const feedM3h = Number(row.feedFlowM3h || 0);
+      const concM3h = Number(row.concFlowM3h || 0);
+      const permM3h = Math.max(feedM3h - concM3h, 0);
+      const permGpm = permM3h * M3H_TO_GPM;
+      return `
+        <tr>
+          <td>${row.index ? `1-${row.index}` : ''}</td>
+          <td>${row.vessels ?? ''}</td>
+          <td>${row.feedFlowGpm ?? ''}</td>
+          <td>${row.concFlowGpm ?? ''}</td>
+          <td>${permGpm.toFixed(1)}</td>
+          <td>${row.fluxGfd ?? ''}</td>
+          <td>${row.highestFluxGfd ?? ''}</td>
+          <td>${row.highestBeta ?? ''}</td>
+          <td>${row.concPressurePsi ?? ''}</td>
+        </tr>
+      `;
+    }).join('');
+
+    const printWindow = window.open('', '_blank', 'width=1200,height=900');
+    if (!printWindow) return;
+    printWindow.document.open();
+    printWindow.document.write(`
+      <html>
+        <head>
+          <title>Design Report</title>
+          <style>
+            body { font-family: Arial, sans-serif; margin: 0; padding: 20px; color: #1d2b3a; }
+            h1 { margin: 0; font-size: 20px; }
+            .header { display: flex; justify-content: space-between; align-items: center; border-bottom: 3px solid #1f6fb2; padding-bottom: 8px; margin-bottom: 12px; }
+            .section { margin-bottom: 16px; }
+            .section-title { font-weight: bold; color: #1f6fb2; margin-bottom: 6px; }
+            table { width: 100%; border-collapse: collapse; font-size: 12px; }
+            th, td { border: 1px solid #c9d3de; padding: 6px; text-align: center; }
+            th { background: #f0f3f7; }
+            .meta { display: grid; grid-template-columns: repeat(2, 1fr); gap: 6px; font-size: 12px; }
+            .meta div { padding: 4px 0; }
+          </style>
+        </head>
+        <body>
+          <div class="header">
+            <h1>Basic Design</h1>
+            <div>${reportDate}</div>
+          </div>
+          <div class="section meta">
+            <div><strong>Project name:</strong> ${waterData.projectName || ''}</div>
+            <div><strong>Client Name:</strong> ${waterData.clientName || ''}</div>
+            <div><strong>Calculated by:</strong> ${waterData.calculatedBy || ''}</div>
+            <div><strong>Permeate flow/train:</strong> ${projection.permeateFlow || '0.00'} ${unit}</div>
+            <div><strong>Raw water flow/train:</strong> ${projection.feedFlow || '0.00'} ${unit}</div>
+            <div><strong>Permeate recovery:</strong> ${Number(systemConfig.recovery || 0).toFixed(2)} %</div>
+            <div><strong>Feed pressure:</strong> ${projection.calcFeedPressurePsi || '0.0'} psi</div>
+            <div><strong>Feed temperature:</strong> ${tempF.toFixed(1)} °F</div>
+            <div><strong>Feed Water pH:</strong> ${feedPh.toFixed(2)}</div>
+            <div><strong>Chemical dose, mg/L:</strong> ${systemConfig.chemical || 'None'}</div>
+            <div><strong>Membrane age:</strong> ${Number(systemConfig.membraneAge || 0).toFixed(1)} years</div>
+            <div><strong>Flux decline, per year:</strong> ${Number(systemConfig.fluxDeclinePerYear || 0).toFixed(1)} %</div>
+            <div><strong>Fouling factor:</strong> ${Number(systemConfig.foulingFactor || 1).toFixed(2)}</div>
+            <div><strong>SP increase, per year:</strong> ${Number(systemConfig.spIncreasePerYear || 0).toFixed(1)} %</div>
+            <div><strong>Feed type:</strong> ${waterData.waterType || ''}</div>
+            <div><strong>Pretreatment:</strong> ${waterData.pretreatment || 'Conventional'}</div>
+            <div><strong>Average flux:</strong> ${projection.calcFluxGfd || '0.0'} gfd</div>
+          </div>
+
+          <div class="section">
+            <div class="section-title">Stage Results</div>
+            <table>
+              <thead>
+                <tr>
+                  <th>Stage</th>
+                  <th>Vessels</th>
+                  <th>Feed (gpm)</th>
+                  <th>Conc (gpm)</th>
+                  <th>Perm (gpm)</th>
+                  <th>Flux (gfd)</th>
+                  <th>Max Flux (gfd)</th>
+                  <th>Beta</th>
+                  <th>Conc (psi)</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${stageRows || '<tr><td colspan="9">No stage results</td></tr>'}
+              </tbody>
+            </table>
+          </div>
+
+          <div class="section">
+            <div class="section-title">Ion (mg/L)</div>
+            <table>
+              <thead>
+                <tr>
+                  <th>Ion</th>
+                  <th>Raw Water</th>
+                  <th>Feed Water</th>
+                  <th>Permeate Water</th>
+                  <th>Concentrate</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr><td>Na</td><td>${ionFeed.na.toFixed(2)}</td><td>${ionFeed.na.toFixed(2)}</td><td>${Number(permIons.na || 0).toFixed(3)}</td><td>${Number(concIons.na || 0).toFixed(1)}</td></tr>
+                <tr><td>HCO3</td><td>${ionFeed.hco3.toFixed(2)}</td><td>${ionFeed.hco3.toFixed(2)}</td><td>${Number(permIons.hco3 || 0).toFixed(3)}</td><td>${Number(concIons.hco3 || 0).toFixed(1)}</td></tr>
+                <tr><td>Cl</td><td>${ionFeed.cl.toFixed(2)}</td><td>${ionFeed.cl.toFixed(2)}</td><td>${Number(permIons.cl || 0).toFixed(3)}</td><td>${Number(concIons.cl || 0).toFixed(1)}</td></tr>
+                <tr><td>CO2</td><td>${ionFeed.co2.toFixed(2)}</td><td>${ionFeed.co2.toFixed(2)}</td><td>${Number(permIons.co2 || 0).toFixed(3)}</td><td>${Number(concIons.co2 || 0).toFixed(2)}</td></tr>
+                <tr><td>NH3</td><td>${ionFeed.nh4.toFixed(2)}</td><td>${ionFeed.nh4.toFixed(2)}</td><td>${Number(permIons.nh4 || 0).toFixed(3)}</td><td>${Number(concIons.nh4 || 0).toFixed(2)}</td></tr>
+                <tr><td>TDS</td><td>${rawTds.toFixed(2)}</td><td>${rawTds.toFixed(2)}</td><td>${permTds.toFixed(2)}</td><td>${concTds.toFixed(2)}</td></tr>
+                <tr><td>pH</td><td>${Number(waterData.ph || 7).toFixed(2)}</td><td>${feedPh.toFixed(2)}</td><td>${permPh.toFixed(2)}</td><td>${concPh.toFixed(2)}</td></tr>
+              </tbody>
+            </table>
+          </div>
+
+          <div class="section">
+            <div class="section-title">Saturations</div>
+            <table>
+              <thead>
+                <tr>
+                  <th>Parameter</th>
+                  <th>Raw Water</th>
+                  <th>Feed Water</th>
+                  <th>Permeate Water</th>
+                  <th>Concentrate</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr><td>CaSO4 / Ksp * 100, %</td><td>0</td><td>0</td><td>0</td><td>${projection.concentrateSaturation?.caSo4 ?? '0.0'}</td></tr>
+                <tr><td>SrSO4 / Ksp * 100, %</td><td>0</td><td>0</td><td>0</td><td>${projection.concentrateSaturation?.srSo4 ?? '0.0'}</td></tr>
+                <tr><td>BaSO4 / Ksp * 100, %</td><td>0</td><td>0</td><td>0</td><td>${projection.concentrateSaturation?.baSo4 ?? '0.0'}</td></tr>
+                <tr><td>SiO2 Saturation, %</td><td>0</td><td>0</td><td>0</td><td>${projection.concentrateSaturation?.sio2 ?? '0.0'}</td></tr>
+                <tr><td>CaF2 / Ksp * 100, %</td><td>0</td><td>0</td><td>0</td><td>${projection.concentrateSaturation?.caF2 ?? '0.0'}</td></tr>
+                <tr><td>Ca3(PO4)2</td><td>0.0</td><td>0.0</td><td>0.0</td><td>${projection.concentrateSaturation?.ca3po42 ?? '0.00'}</td></tr>
+                <tr><td>CCPP, mg/L</td><td>0.00</td><td>0.00</td><td>0.00</td><td>${projection.concentrateParameters?.ccpp ?? '0.0'}</td></tr>
+                <tr><td>Langelier index</td><td>0.00</td><td>0.00</td><td>0.00</td><td>${projection.concentrateParameters?.langelier ?? '0.00'}</td></tr>
+                <tr><td>Osmotic pressure, psi</td><td>${projection.concentrateParameters?.osmoticPressure ?? '0.0'}</td><td>${projection.concentrateParameters?.osmoticPressure ?? '0.0'}</td><td>0.5</td><td>${projection.concentrateParameters?.osmoticPressure ?? '0.0'}</td></tr>
+              </tbody>
+            </table>
+          </div>
+
+          <div class="section">
+            <div class="section-title">Flow Diagram Streams</div>
+            <table>
+              <thead>
+                <tr>
+                  <th>Stream No.</th>
+                  <th>Flow (${unit})</th>
+                  <th>Pressure (psi)</th>
+                  <th>TDS (mg/L)</th>
+                  <th>pH</th>
+                  <th>Econd (μS/cm)</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td>1</td>
+                  <td>${projection.feedFlow || '0.00'}</td>
+                  <td>0</td>
+                  <td>${rawTds.toFixed(0)}</td>
+                  <td>${Number(waterData.ph || 7).toFixed(2)}</td>
+                  <td>${toEcond(rawTds)}</td>
+                </tr>
+                <tr>
+                  <td>2</td>
+                  <td>${projection.feedFlow || '0.00'}</td>
+                  <td>${projection.calcFeedPressurePsi || '0.0'}</td>
+                  <td>${rawTds.toFixed(0)}</td>
+                  <td>${feedPh.toFixed(2)}</td>
+                  <td>${toEcond(rawTds)}</td>
+                </tr>
+                <tr>
+                  <td>3</td>
+                  <td>${projection.concentrateFlow || '0.00'}</td>
+                  <td>${projection.calcConcPressurePsi || '0.0'}</td>
+                  <td>${concTds.toFixed(0)}</td>
+                  <td>${concPh.toFixed(2)}</td>
+                  <td>${toEcond(concTds)}</td>
+                </tr>
+                <tr>
+                  <td>4</td>
+                  <td>${projection.permeateFlow || '0.00'}</td>
+                  <td>0</td>
+                  <td>${permTds.toFixed(1)}</td>
+                  <td>${permPh.toFixed(2)}</td>
+                  <td>${toEcond(permTds)}</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </body>
+      </html>
+    `);
+    printWindow.document.close();
+    printWindow.focus();
+    printWindow.print();
+    printWindow.close();
+  };
+
   const handleLoadFromFile = (e) => {
     const file = e.target.files[0];
     if (!file) return;
@@ -648,6 +890,7 @@ const App = () => {
           <button onClick={handleSaveToFile} style={{ background: '#27ae60', border: 'none', color: 'white', padding: '8px 12px', borderRadius: '4px', cursor: 'pointer', fontSize: '0.8rem', fontWeight: 'bold' }}>💾 Save</button>
           <button onClick={() => fileInputRef.current.click()} style={{ background: '#3498db', border: 'none', color: 'white', padding: '8px 12px', borderRadius: '4px', cursor: 'pointer', fontSize: '0.8rem', fontWeight: 'bold' }}>📁 Load</button>
           <input type="file" ref={fileInputRef} style={{ display: 'none' }} onChange={handleLoadFromFile} />
+          <button onClick={handlePrintDesignReport} style={{ background: '#f39c12', border: 'none', color: 'white', padding: '8px 12px', borderRadius: '4px', cursor: 'pointer', fontSize: '0.8rem', fontWeight: 'bold' }}>🖨️ Print</button>
           <button onClick={handleReset} style={{ background: '#e74c3c', border: 'none', color: 'white', padding: '8px 12px', borderRadius: '4px', cursor: 'pointer', fontSize: '0.8rem', fontWeight: 'bold' }}>Reset</button>
         </div>
       </header>

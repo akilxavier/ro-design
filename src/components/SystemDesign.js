@@ -1,8 +1,9 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 
 const SystemDesign = ({ membranes, systemConfig, setSystemConfig, projection, waterData, onRun }) => {
   const [showMembraneModal, setShowMembraneModal] = useState(false);
   const [showFlowDiagram, setShowFlowDiagram] = useState(false);
+  const flowDiagramRef = useRef(null);
   const [selectedStageForMembrane, setSelectedStageForMembrane] = useState(1);
   const [localPass1Stages, setLocalPass1Stages] = useState(null); // Local state for input while typing
 
@@ -270,6 +271,39 @@ const SystemDesign = ({ membranes, systemConfig, setSystemConfig, projection, wa
   const flowDiagramReady = systemConfig.designCalculated && projection;
   const econdFactor = 1.9095;
   const tdsToEcond = (value) => Math.round((Number(value) || 0) * econdFactor);
+  const handlePrintFlowDiagram = () => {
+    if (!flowDiagramRef.current) return;
+    const printWindow = window.open('', '_blank', 'width=1200,height=900');
+    if (!printWindow) return;
+    printWindow.document.open();
+    printWindow.document.write(`
+      <html>
+        <head>
+          <title>Flow Diagram</title>
+          <style>
+            body { font-family: Arial, sans-serif; margin: 0; padding: 20px; }
+            .print-container { width: 100%; }
+            table { width: 100%; border-collapse: collapse; font-size: 0.8rem; text-align: center; }
+            th, td { border: 1px solid #c9d3de; padding: 6px; }
+            thead { background: #f0f3f7; }
+            .header { background: #1f6fb2; color: white; padding: 12px 16px; font-weight: bold; font-size: 1rem; }
+            .meta { padding: 12px 16px; border-bottom: 1px solid #d6e1ed; display: flex; gap: 20px; font-size: 0.85rem; }
+            .content { padding: 20px 0; }
+            svg { width: 100%; height: 260px; }
+          </style>
+        </head>
+        <body>
+          <div class="print-container">
+            ${flowDiagramRef.current.innerHTML}
+          </div>
+        </body>
+      </html>
+    `);
+    printWindow.document.close();
+    printWindow.focus();
+    printWindow.print();
+    printWindow.close();
+  };
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '15px', fontFamily: 'Arial' }}>
@@ -662,16 +696,17 @@ const SystemDesign = ({ membranes, systemConfig, setSystemConfig, projection, wa
             overflow: 'auto',
             boxShadow: '0 4px 20px rgba(0,0,0,0.3)'
           }} onClick={(e) => e.stopPropagation()}>
-            <div style={{ background: '#1f6fb2', color: 'white', padding: '12px 16px', fontWeight: 'bold', fontSize: '1rem' }}>
-              Flow Diagram
-            </div>
-            <div style={{ padding: '12px 16px', borderBottom: '1px solid #d6e1ed', display: 'flex', gap: '20px', fontSize: '0.85rem' }}>
-              <div>Project name: {waterData?.projectName || 'Project'}</div>
-              <div>Temperature: {((Number(waterData?.temp || 25) * 9) / 5 + 32).toFixed(1)} °F</div>
-              <div>Date: {new Date().toLocaleDateString()}</div>
-              <div>Membrane age, P1: {Number(systemConfig.membraneAge || 0).toFixed(1)} years</div>
-            </div>
-            <div style={{ padding: '20px' }}>
+            <div ref={flowDiagramRef}>
+              <div style={{ background: '#1f6fb2', color: 'white', padding: '12px 16px', fontWeight: 'bold', fontSize: '1rem' }}>
+                Flow Diagram
+              </div>
+              <div style={{ padding: '12px 16px', borderBottom: '1px solid #d6e1ed', display: 'flex', gap: '20px', fontSize: '0.85rem' }}>
+                <div>Project name: {waterData?.projectName || 'Project'}</div>
+                <div>Temperature: {((Number(waterData?.temp || 25) * 9) / 5 + 32).toFixed(1)} °F</div>
+                <div>Date: {new Date().toLocaleDateString()}</div>
+                <div>Membrane age, P1: {Number(systemConfig.membraneAge || 0).toFixed(1)} years</div>
+              </div>
+              <div style={{ padding: '20px' }}>
               <svg viewBox="0 0 900 260" width="100%" height="260">
                 <line x1="40" y1="130" x2="240" y2="130" stroke="#1e6bd6" strokeWidth="6" />
                 <line x1="240" y1="130" x2="320" y2="130" stroke="#1e6bd6" strokeWidth="6" />
@@ -758,18 +793,32 @@ const SystemDesign = ({ membranes, systemConfig, setSystemConfig, projection, wa
                 </table>
               </div>
             </div>
+            </div>
             <div style={{ display: 'flex', justifyContent: 'flex-end', padding: '12px 16px' }}>
-              <button onClick={() => setShowFlowDiagram(false)} style={{
-                background: '#1f6fb2',
-                color: 'white',
-                border: 'none',
-                borderRadius: '20px',
-                padding: '8px 24px',
-                cursor: 'pointer',
-                fontWeight: 'bold'
-              }}>
-                Cancel
-              </button>
+              <div style={{ display: 'flex', gap: '10px' }}>
+                <button onClick={handlePrintFlowDiagram} style={{
+                  background: '#2ecc71',
+                  color: 'white',
+                  border: 'none',
+                  borderRadius: '20px',
+                  padding: '8px 24px',
+                  cursor: 'pointer',
+                  fontWeight: 'bold'
+                }}>
+                  Print
+                </button>
+                <button onClick={() => setShowFlowDiagram(false)} style={{
+                  background: '#1f6fb2',
+                  color: 'white',
+                  border: 'none',
+                  borderRadius: '20px',
+                  padding: '8px 24px',
+                  cursor: 'pointer',
+                  fontWeight: 'bold'
+                }}>
+                  Cancel
+                </button>
+              </div>
             </div>
           </div>
         </div>
