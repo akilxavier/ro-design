@@ -30,6 +30,21 @@ export const calculateSystem = (inputs) => {
 
   const recoveryPct = Math.min(Math.max(Number(recovery) || 0, 1), 99);
   const recFrac = recoveryPct / 100;
+  const feedPhValue = Number(feedPH) || 7.0;
+  const normalizedFeedIons = { ...(feedIons || {}) };
+  const hco3Val = Number(normalizedFeedIons.hco3) || 0;
+  const co2Val = Number(normalizedFeedIons.co2) || 0;
+  const co3Val = Number(normalizedFeedIons.co3) || 0;
+  if (co2Val === 0 && hco3Val > 0) {
+    const pKa1 = 6.35;
+    const ratio = Math.pow(10, pKa1 - feedPhValue);
+    normalizedFeedIons.co2 = Number((hco3Val * ratio).toFixed(3));
+  }
+  if (co3Val === 0 && hco3Val > 0 && feedPhValue >= 8.2) {
+    const pKa2 = 10.33;
+    const ratio = Math.pow(10, feedPhValue - pKa2);
+    normalizedFeedIons.co3 = Number((hco3Val * ratio).toFixed(3));
+  }
   const tempC = (Number(tempF) - 32) * (5 / 9);
   const feedFlowTotal = recFrac > 0 ? Number(totalFlow) / recFrac : 0;
   const concentrateFlowTotal = feedFlowTotal - Number(totalFlow || 0);
@@ -94,9 +109,20 @@ export const calculateSystem = (inputs) => {
   let permeateTDS = 0;
   let concentrateTDS = 0;
 
-  Object.keys(feedIons || {}).forEach((ion) => {
-    const feedConc = Number(feedIons[ion]) || 0;
-    const rejection = getIonRejection(ion);
+  Object.keys(normalizedFeedIons || {}).forEach((ion) => {
+    const feedConc = Number(normalizedFeedIons[ion]) || 0;
+    if (ion === 'co2') {
+      permeateIons[ion] = formatConc(feedConc);
+      concentrateIons[ion] = formatConc(feedConc);
+      permeateTDS += feedConc;
+      concentrateTDS += feedConc;
+      return;
+    }
+    let rejection = getIonRejection(ion);
+    if (ion === 'nh4') {
+      const nh3Fraction = Math.min(Math.max((feedPhValue - 7.2) / (11.5 - 7.2), 0), 1);
+      rejection = rejection * (1 - nh3Fraction);
+    }
     const passage = Math.max(1 - rejection / 100, 0);
     const saltPassage = passage * cf * beta;
 
@@ -110,8 +136,8 @@ export const calculateSystem = (inputs) => {
   });
 
   const osmoticPressure = (0.0385 * concentrateTDS * (tempC + 273.15)) / 1000;
-  const permeatePh = Math.min(Math.max(Number(feedPH) - 2.7, 0), 14);
-  const concentratePh = Math.min(Math.max(Number(feedPH) + Math.log10(Math.max(cf, 1)) * 0.3, 0), 14);
+  const permeatePh = Math.min(Math.max(feedPhValue - 2.7, 0), 14);
+  const concentratePh = Math.min(Math.max(feedPhValue + Math.log10(Math.max(cf, 1)) * 0.3, 0), 14);
 
   const pCa = -Math.log10((Number(concentrateIons.ca) || 0) / 40080 || 1);
   const pAlk = -Math.log10((Number(concentrateIons.hco3) || 0) / 61010 || 1);
@@ -286,7 +312,8 @@ export const calculateSystem = (inputs) => {
 };
 
 export const calculateIonPassage = (feedIons, systemData) => {
-  const { recovery, tempC, vessels } = systemData;
+  const { recovery, tempC, vessels, feedPH } = systemData;
+  const feedPhValue = Number(feedPH) || 7.0;
   const recoveryPct = Math.min(Math.max(Number(recovery) || 0, 1), 99);
   const recFrac = recoveryPct / 100;
 
@@ -315,7 +342,17 @@ export const calculateIonPassage = (feedIons, systemData) => {
 
   Object.keys(feedIons || {}).forEach((ion) => {
     const feedConc = Number(feedIons[ion]) || 0;
-    const rej = rejections[ion] != null ? rejections[ion] : 0.99;
+    if (ion === 'CO2' || ion === 'co2') {
+      permeateIons[ion] = feedConc;
+      concentrateIons[ion] = feedConc;
+      permeateTDS += feedConc;
+      return;
+    }
+    let rej = rejections[ion] != null ? rejections[ion] : 0.99;
+    if (ion === 'NH4' || ion === 'nh4') {
+      const nh3Fraction = Math.min(Math.max((feedPhValue - 7.2) / (11.5 - 7.2), 0), 1);
+      rej = rej * (1 - nh3Fraction);
+    }
 
     // Salt Passage = (1 - Rejection) * CF * Beta
     const saltPassage = (1 - rej) * cf * beta;
