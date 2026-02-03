@@ -1070,40 +1070,55 @@ const App = () => {
       
       {/* GLOBAL HEADER */}
       <header style={{ backgroundColor: '#002f5d', color: '#fff', padding: '10px 20px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', boxShadow: '0 2px 10px rgba(0,0,0,0.2)' }}>
-        <h2 style={{ margin: 0, fontSize: '1.4rem' }}>IMSDesign Pro 3.0</h2>
+        <h2 style={{ margin: 0, fontSize: '1.35rem', lineHeight: 1.2 }}>Morris-Jenkins IMS Design Pro 3.0</h2>
         
-        <nav style={{ display: 'flex', gap: '2px' }}>
+        <nav style={{ display: 'flex', gap: '6px', background: 'rgba(255,255,255,0.08)', padding: '4px', borderRadius: '10px' }}>
           {['dashboard', 'analysis', 'pretreatment', 'design', 'post', 'report', 'database'].map(t => (
-            <button key={t} onClick={() => setActiveTab(t)} style={{ padding: '10px 15px', background: activeTab === t ? '#f39c12' : 'transparent', color: 'white', border: 'none', cursor: 'pointer', fontWeight: 'bold', textTransform: 'uppercase', fontSize: '0.75rem' }}>
+            <button
+              key={t}
+              onClick={() => setActiveTab(t)}
+              style={{
+                padding: '8px 14px',
+                background: activeTab === t ? '#f39c12' : 'transparent',
+                color: activeTab === t ? '#1b1b1b' : 'white',
+                border: activeTab === t ? '1px solid #f39c12' : '1px solid transparent',
+                cursor: 'pointer',
+                fontWeight: 'bold',
+                textTransform: 'uppercase',
+                fontSize: '0.72rem',
+                letterSpacing: '0.4px',
+                borderRadius: '8px'
+              }}
+            >
               {t}
             </button>
           ))}
         </nav>
 
-        {/* RESTORED ACTION GROUP */}
+        {/* ACTION MENU GROUP */}
         <div style={{ display: 'flex', gap: '8px', marginLeft: '16px' }}>
-          <button onClick={takeSnapshot} style={{ background: '#9b59b6', border: 'none', color: 'white', padding: '8px 12px', borderRadius: '4px', cursor: 'pointer', fontSize: '0.8rem', fontWeight: 'bold' }}>📸 Snapshot</button>
-          <button onClick={handleSaveToFile} style={{ background: '#27ae60', border: 'none', color: 'white', padding: '8px 12px', borderRadius: '4px', cursor: 'pointer', fontSize: '0.8rem', fontWeight: 'bold' }}>💾 Save</button>
-          <button onClick={() => fileInputRef.current.click()} style={{ background: '#3498db', border: 'none', color: 'white', padding: '8px 12px', borderRadius: '4px', cursor: 'pointer', fontSize: '0.8rem', fontWeight: 'bold' }}>📁 Load</button>
+          <button onClick={takeSnapshot} style={{ background: '#8e44ad', border: '1px solid #7d3c98', color: 'white', padding: '8px 12px', borderRadius: '8px', cursor: 'pointer', fontSize: '0.78rem', fontWeight: 'bold' }}>📸 Snapshot</button>
+          <button onClick={handleSaveToFile} style={{ background: '#27ae60', border: '1px solid #229954', color: 'white', padding: '8px 12px', borderRadius: '8px', cursor: 'pointer', fontSize: '0.78rem', fontWeight: 'bold' }}>💾 Save</button>
+          <button onClick={() => fileInputRef.current.click()} style={{ background: '#3498db', border: '1px solid #2e86c1', color: 'white', padding: '8px 12px', borderRadius: '8px', cursor: 'pointer', fontSize: '0.78rem', fontWeight: 'bold' }}>📁 Load</button>
           <input type="file" ref={fileInputRef} style={{ display: 'none' }} onChange={handleLoadFromFile} />
           <button
             onClick={handleDeleteSelectedProjects}
             disabled={selectedProjectIds.length === 0}
             style={{
               background: selectedProjectIds.length === 0 ? '#7f8c8d' : '#c0392b',
-              border: 'none',
+              border: selectedProjectIds.length === 0 ? '1px solid #6c7a89' : '1px solid #a93226',
               color: 'white',
               padding: '8px 12px',
-              borderRadius: '4px',
+              borderRadius: '8px',
               cursor: selectedProjectIds.length === 0 ? 'not-allowed' : 'pointer',
-              fontSize: '0.8rem',
+              fontSize: '0.78rem',
               fontWeight: 'bold'
             }}
           >
             🗑️ Delete
           </button>
-          <button onClick={handlePrintDesignReport} style={{ background: '#f39c12', border: 'none', color: 'white', padding: '8px 12px', borderRadius: '4px', cursor: 'pointer', fontSize: '0.8rem', fontWeight: 'bold' }}>🖨️ Print</button>
-          <button onClick={handleReset} style={{ background: '#e74c3c', border: 'none', color: 'white', padding: '8px 12px', borderRadius: '4px', cursor: 'pointer', fontSize: '0.8rem', fontWeight: 'bold' }}>Reset</button>
+          <button onClick={handlePrintDesignReport} style={{ background: '#f39c12', border: '1px solid #d68910', color: 'white', padding: '8px 12px', borderRadius: '8px', cursor: 'pointer', fontSize: '0.78rem', fontWeight: 'bold' }}>🖨️ Print</button>
+          <button onClick={handleReset} style={{ background: '#e74c3c', border: '1px solid #cb4335', color: 'white', padding: '8px 12px', borderRadius: '8px', cursor: 'pointer', fontSize: '0.78rem', fontWeight: 'bold' }}>Reset</button>
         </div>
       </header>
 
