@@ -10,7 +10,7 @@ import ValidationBanner from './components/ValidationBanner';
 import { calculateSystem } from './utils/calculatorService';
 
 const App = () => {
-  const [activeTab, setActiveTab] = useState('analysis');
+  const [activeTab, setActiveTab] = useState('dashboard');
   const [isLoaded, setIsLoaded] = useState(false);
   const [isGuidelineOpen, setIsGuidelineOpen] = useState(false);
   const fileInputRef = useRef(null);
@@ -114,7 +114,9 @@ const App = () => {
   ]); 
   
   const [projectNotes, setProjectNotes] = useState(""); 
+  const createProjectId = () => `proj_${Date.now()}`;
   const [waterData, setWaterData] = useState({
+    projectId: createProjectId(),
     projectName: 'New_Project_V3',
     clientName: '',
     calculatedBy: '',
@@ -134,6 +136,8 @@ const App = () => {
   const [projection, setProjection] = useState({ 
     fluxGFD: 0, pumpPressure: 0, monthlyEnergyCost: 0, permeateFlow: 0 
   });
+  const [recentProjects, setRecentProjects] = useState([]);
+  const [selectedProjectIds, setSelectedProjectIds] = useState([]);
   
   // Store base numeric values (without unit conversion) to preserve them when unit changes
   const baseValuesRef = useRef({ 
@@ -542,12 +546,41 @@ const App = () => {
   }, [waterData, systemConfig, membranes]);
 
   // --- 3. PERSISTENCE ---
+  const updateRecentProjects = (dataToSave) => {
+    const entry = {
+      id: dataToSave?.waterData?.projectId || createProjectId(),
+      name: dataToSave?.waterData?.projectName || 'Untitled',
+      clientName: dataToSave?.waterData?.clientName || '',
+      waterType: dataToSave?.waterData?.waterType || '',
+      updatedAt: new Date().toISOString(),
+      data: dataToSave
+    };
+    const stored = localStorage.getItem('ro_pro_recent_projects');
+    let existing = [];
+    if (stored) {
+      try {
+        existing = JSON.parse(stored) || [];
+      } catch (e) {
+        existing = [];
+      }
+    }
+    const filtered = existing.filter(item => item.id !== entry.id);
+    const next = [entry, ...filtered].slice(0, 10);
+    setRecentProjects(next);
+    localStorage.setItem('ro_pro_recent_projects', JSON.stringify(next));
+  };
+
   useEffect(() => {
     const saved = localStorage.getItem('ro_pro_v3_master_final');
     if (saved) {
       try {
         const p = JSON.parse(saved);
-        setWaterData(p.waterData);
+        const incomingWater = p.waterData || {};
+        const hydratedWater = {
+          ...incomingWater,
+          projectId: incomingWater.projectId || createProjectId()
+        };
+        setWaterData(hydratedWater);
         const merged = { ...DEFAULT_SYSTEM_CONFIG, ...(p.systemConfig || {}) };
         // Back-compat: older saves had totalPlantProductFlow instead of permeateFlow
         if ((merged.permeateFlow === undefined || merged.permeateFlow === null) && merged.totalPlantProductFlow != null) {
@@ -558,7 +591,16 @@ const App = () => {
         setMembranes(p.membranes || membranes);
         setProjectNotes(p.projectNotes || "");
         setSnapshots(p.snapshots || []);
+        setPretreatment(p.pretreatment || pretreatment);
+        setPostTreatment(p.postTreatment || postTreatment);
       } catch (e) { console.error("Restore failed", e); }
+    }
+    const recent = localStorage.getItem('ro_pro_recent_projects');
+    if (recent) {
+      try {
+        const parsed = JSON.parse(recent);
+        if (Array.isArray(parsed)) setRecentProjects(parsed);
+      } catch (e) { console.error("Recent projects restore failed", e); }
     }
     setIsLoaded(true);
   }, []);
@@ -567,7 +609,19 @@ const App = () => {
     if (isLoaded) {
       const dataToSave = { waterData, systemConfig, membranes, snapshots, projectNotes, pretreatment, postTreatment };
       localStorage.setItem('ro_pro_v3_master_final', JSON.stringify(dataToSave));
+      updateRecentProjects(dataToSave);
     }
+  }, [waterData, systemConfig, membranes, snapshots, projectNotes, pretreatment, postTreatment, isLoaded]);
+
+  useEffect(() => {
+    const handleBeforeUnload = () => {
+      if (!isLoaded) return;
+      const dataToSave = { waterData, systemConfig, membranes, snapshots, projectNotes, pretreatment, postTreatment };
+      localStorage.setItem('ro_pro_v3_master_final', JSON.stringify(dataToSave));
+      updateRecentProjects(dataToSave);
+    };
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    return () => window.removeEventListener('beforeunload', handleBeforeUnload);
   }, [waterData, systemConfig, membranes, snapshots, projectNotes, pretreatment, postTreatment, isLoaded]);
 
   // --- 4. ACTION HANDLERS ---
@@ -782,6 +836,35 @@ const App = () => {
           </div>
 
           <div class="section">
+            <div class="section-title">Flow Diagram</div>
+            <div style="padding: 10px 0;">
+              <svg viewBox="0 0 900 260" width="100%" height="260">
+                <line x1="40" y1="130" x2="240" y2="130" stroke="#1e6bd6" strokeWidth="6" />
+                <line x1="240" y1="130" x2="320" y2="130" stroke="#1e6bd6" strokeWidth="6" />
+                <line x1="320" y1="130" x2="380" y2="130" stroke="#1e6bd6" strokeWidth="6" />
+                <line x1="440" y1="130" x2="520" y2="130" stroke="#1e6bd6" strokeWidth="6" />
+                <line x1="520" y1="130" x2="660" y2="130" stroke="#1e6bd6" strokeWidth="6" />
+                <line x1="660" y1="130" x2="780" y2="130" stroke="#3cc7f4" strokeWidth="6" />
+                <line x1="660" y1="130" x2="660" y2="210" stroke="#35c84b" strokeWidth="6" />
+                <polygon points="90,110 120,110 135,130 120,150 90,150 75,130" fill="white" stroke="#222" strokeWidth="2" />
+                <text x="105" y="136" textAnchor="middle" fontSize="14" fontFamily="Arial">1</text>
+                <polygon points="210,110 240,110 255,130 240,150 210,150 195,130" fill="white" stroke="#222" strokeWidth="2" />
+                <text x="225" y="136" textAnchor="middle" fontSize="14" fontFamily="Arial">2</text>
+                <circle cx="380" cy="130" r="30" fill="white" stroke="#222" strokeWidth="3" />
+                <polygon points="372,115 402,130 372,145" fill="white" stroke="#222" strokeWidth="2" />
+                <polygon points="520,110 550,110 565,130 550,150 520,150 505,130" fill="white" stroke="#222" strokeWidth="2" />
+                <text x="535" y="136" textAnchor="middle" fontSize="14" fontFamily="Arial">3</text>
+                <rect x="660" y="95" width="140" height="70" fill="white" stroke="#222" strokeWidth="2" />
+                <polygon points="650,205 670,205 680,220 670,235 650,235 640,220" fill="white" stroke="#222" strokeWidth="2" />
+                <text x="660" y="226" textAnchor="middle" fontSize="14" fontFamily="Arial">4</text>
+                <polygon points="800,110 830,110 845,130 830,150 800,150 785,130" fill="white" stroke="#222" strokeWidth="2" />
+                <text x="815" y="136" textAnchor="middle" fontSize="14" fontFamily="Arial">5</text>
+                ${systemConfig.chemical !== 'None' ? `
+                  <text x="180" y="60" textAnchor="middle" fontSize="12" fontFamily="Arial" fill="#b83b2e">${systemConfig.chemical} Dosing</text>
+                  <line x1="180" y1="70" x2="180" y2="110" stroke="#b83b2e" strokeWidth="2" />
+                ` : ''}
+              </svg>
+            </div>
             <div class="section-title">Flow Diagram Streams</div>
             <table>
               <thead>
@@ -854,6 +937,119 @@ const App = () => {
     };
     reader.readAsText(file);
   };
+
+  const handleNewProject = () => {
+    if (!window.confirm("Start a new project? Current data will be replaced.")) return;
+    const newId = createProjectId();
+    setWaterData({
+      projectId: newId,
+      projectName: 'New_Project_V3',
+      clientName: '',
+      calculatedBy: '',
+      pretreatment: 'Conventional',
+      waterType: 'Well Water',
+      calculatedTds: 0,
+      temp: 25,
+      ph: 7.5,
+      ca: 60,
+      mg: 20,
+      na: 250,
+      k: 15,
+      hco3: 250,
+      so4: 100,
+      cl: 300,
+      no3: 25,
+      sio2: 20,
+      nh4: 0,
+      sr: 0,
+      ba: 0,
+      po4: 0,
+      f: 0,
+      b: 0,
+      co2: 0,
+      co3: 0
+    });
+    setSystemConfig(DEFAULT_SYSTEM_CONFIG);
+    setPretreatment({ antiscalantDose: 3.5, sbsDose: 2.0 });
+    setPostTreatment({ causticDose: 2.0 });
+    setSnapshots([]);
+    setProjectNotes("");
+    setActiveTab('analysis');
+  };
+
+  const handleOpenRecent = (entry) => {
+    if (!entry?.data) return;
+    const data = entry.data;
+    const incomingWater = data.waterData || {};
+    setWaterData({
+      ...incomingWater,
+      projectId: incomingWater.projectId || createProjectId()
+    });
+    setSystemConfig({ ...DEFAULT_SYSTEM_CONFIG, ...(data.systemConfig || {}) });
+    setMembranes(data.membranes || membranes);
+    setSnapshots(data.snapshots || []);
+    setProjectNotes(data.projectNotes || "");
+    setPretreatment(data.pretreatment || pretreatment);
+    setPostTreatment(data.postTreatment || postTreatment);
+    setActiveTab('analysis');
+  };
+
+  const handleDeleteProject = (projectId) => {
+    if (!window.confirm("Delete this project? This cannot be undone.")) return;
+    const stored = localStorage.getItem('ro_pro_recent_projects');
+    let existing = [];
+    if (stored) {
+      try {
+        existing = JSON.parse(stored) || [];
+      } catch (e) {
+        existing = [];
+      }
+    }
+    const next = existing.filter(item => item.id !== projectId);
+    setRecentProjects(next);
+    localStorage.setItem('ro_pro_recent_projects', JSON.stringify(next));
+    if (waterData.projectId === projectId) {
+      handleNewProject();
+    }
+  };
+
+  const handleToggleProjectSelect = (projectId) => {
+    setSelectedProjectIds((current) => {
+      if (current.includes(projectId)) {
+        return current.filter(id => id !== projectId);
+      }
+      return [...current, projectId];
+    });
+  };
+
+  const handleToggleSelectAllProjects = () => {
+    if (selectedProjectIds.length === recentProjects.length) {
+      setSelectedProjectIds([]);
+    } else {
+      setSelectedProjectIds(recentProjects.map(project => project.id));
+    }
+  };
+
+  const handleDeleteSelectedProjects = () => {
+    if (selectedProjectIds.length === 0) return;
+    if (!window.confirm(`Delete ${selectedProjectIds.length} project(s)? This cannot be undone.`)) return;
+    const stored = localStorage.getItem('ro_pro_recent_projects');
+    let existing = [];
+    if (stored) {
+      try {
+        existing = JSON.parse(stored) || [];
+      } catch (e) {
+        existing = [];
+      }
+    }
+    const next = existing.filter(item => !selectedProjectIds.includes(item.id));
+    setRecentProjects(next);
+    localStorage.setItem('ro_pro_recent_projects', JSON.stringify(next));
+    if (selectedProjectIds.includes(waterData.projectId)) {
+      handleNewProject();
+    }
+    setSelectedProjectIds([]);
+  };
   
   useEffect(() => {
     if (activeTab === 'design') {
@@ -877,7 +1073,7 @@ const App = () => {
         <h2 style={{ margin: 0, fontSize: '1.4rem' }}>IMSDesign Pro 3.0</h2>
         
         <nav style={{ display: 'flex', gap: '2px' }}>
-          {['analysis', 'pretreatment', 'design', 'post', 'report', 'database'].map(t => (
+          {['dashboard', 'analysis', 'pretreatment', 'design', 'post', 'report', 'database'].map(t => (
             <button key={t} onClick={() => setActiveTab(t)} style={{ padding: '10px 15px', background: activeTab === t ? '#f39c12' : 'transparent', color: 'white', border: 'none', cursor: 'pointer', fontWeight: 'bold', textTransform: 'uppercase', fontSize: '0.75rem' }}>
               {t}
             </button>
@@ -890,6 +1086,22 @@ const App = () => {
           <button onClick={handleSaveToFile} style={{ background: '#27ae60', border: 'none', color: 'white', padding: '8px 12px', borderRadius: '4px', cursor: 'pointer', fontSize: '0.8rem', fontWeight: 'bold' }}>💾 Save</button>
           <button onClick={() => fileInputRef.current.click()} style={{ background: '#3498db', border: 'none', color: 'white', padding: '8px 12px', borderRadius: '4px', cursor: 'pointer', fontSize: '0.8rem', fontWeight: 'bold' }}>📁 Load</button>
           <input type="file" ref={fileInputRef} style={{ display: 'none' }} onChange={handleLoadFromFile} />
+          <button
+            onClick={handleDeleteSelectedProjects}
+            disabled={selectedProjectIds.length === 0}
+            style={{
+              background: selectedProjectIds.length === 0 ? '#7f8c8d' : '#c0392b',
+              border: 'none',
+              color: 'white',
+              padding: '8px 12px',
+              borderRadius: '4px',
+              cursor: selectedProjectIds.length === 0 ? 'not-allowed' : 'pointer',
+              fontSize: '0.8rem',
+              fontWeight: 'bold'
+            }}
+          >
+            🗑️ Delete
+          </button>
           <button onClick={handlePrintDesignReport} style={{ background: '#f39c12', border: 'none', color: 'white', padding: '8px 12px', borderRadius: '4px', cursor: 'pointer', fontSize: '0.8rem', fontWeight: 'bold' }}>🖨️ Print</button>
           <button onClick={handleReset} style={{ background: '#e74c3c', border: 'none', color: 'white', padding: '8px 12px', borderRadius: '4px', cursor: 'pointer', fontSize: '0.8rem', fontWeight: 'bold' }}>Reset</button>
         </div>
@@ -898,6 +1110,106 @@ const App = () => {
       <ValidationBanner projection={projection} systemConfig={systemConfig} waterData={waterData} />
 
       <main style={{ padding: '20px', flex: 1, overflowY: 'auto' }}>
+        {activeTab === 'dashboard' && (
+          <div style={{ display: 'grid', gridTemplateColumns: '1.4fr 1fr', gap: '20px' }}>
+            <div style={{ background: '#fff', borderRadius: '8px', border: '1px solid #c2d1df', padding: '20px' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px' }}>
+                <h3 style={{ margin: 0, color: '#002f5d' }}>My Projects</h3>
+            <div style={{ display: 'flex', gap: '8px' }}>
+              <button
+                onClick={handleDeleteSelectedProjects}
+                disabled={selectedProjectIds.length === 0}
+                style={{
+                  background: selectedProjectIds.length === 0 ? '#bdc3c7' : '#e74c3c',
+                  color: '#fff',
+                  border: 'none',
+                  padding: '8px 12px',
+                  borderRadius: '4px',
+                  cursor: selectedProjectIds.length === 0 ? 'not-allowed' : 'pointer',
+                  fontSize: '0.8rem',
+                  fontWeight: 'bold'
+                }}
+              >
+                🗑️ Delete Selected
+              </button>
+              <button
+                onClick={handleNewProject}
+                style={{ background: '#3498db', color: '#fff', border: 'none', padding: '8px 12px', borderRadius: '4px', cursor: 'pointer', fontSize: '0.8rem', fontWeight: 'bold' }}
+              >
+                + New Project
+              </button>
+            </div>
+              </div>
+              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.85rem' }}>
+                <thead>
+                  <tr style={{ background: '#f4f7f9' }}>
+                <th style={{ textAlign: 'left', padding: '8px', borderBottom: '1px solid #e1e5ea', width: '32px' }}>
+                  <input
+                    type="checkbox"
+                    checked={recentProjects.length > 0 && selectedProjectIds.length === recentProjects.length}
+                    onChange={handleToggleSelectAllProjects}
+                  />
+                </th>
+                <th style={{ textAlign: 'left', padding: '8px', borderBottom: '1px solid #e1e5ea' }}>Project</th>
+                    <th style={{ textAlign: 'left', padding: '8px', borderBottom: '1px solid #e1e5ea' }}>Client</th>
+                    <th style={{ textAlign: 'left', padding: '8px', borderBottom: '1px solid #e1e5ea' }}>Water Type</th>
+                    <th style={{ textAlign: 'left', padding: '8px', borderBottom: '1px solid #e1e5ea' }}>Modified</th>
+                    <th style={{ textAlign: 'right', padding: '8px', borderBottom: '1px solid #e1e5ea' }}>Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {recentProjects.length === 0 && (
+                    <tr>
+                  <td colSpan={6} style={{ padding: '12px', color: '#666' }}>No recent projects yet.</td>
+                    </tr>
+                  )}
+                  {recentProjects.map((project) => (
+                    <tr key={project.id}>
+                  <td style={{ padding: '8px', borderBottom: '1px solid #f0f0f0' }}>
+                    <input
+                      type="checkbox"
+                      checked={selectedProjectIds.includes(project.id)}
+                      onChange={() => handleToggleProjectSelect(project.id)}
+                    />
+                  </td>
+                      <td style={{ padding: '8px', borderBottom: '1px solid #f0f0f0' }}>{project.name}</td>
+                      <td style={{ padding: '8px', borderBottom: '1px solid #f0f0f0' }}>{project.clientName}</td>
+                      <td style={{ padding: '8px', borderBottom: '1px solid #f0f0f0' }}>{project.waterType}</td>
+                      <td style={{ padding: '8px', borderBottom: '1px solid #f0f0f0' }}>{new Date(project.updatedAt).toLocaleString()}</td>
+                      <td style={{ padding: '8px', borderBottom: '1px solid #f0f0f0', textAlign: 'right' }}>
+                        <div style={{ display: 'flex', gap: '6px', justifyContent: 'flex-end' }}>
+                          <button
+                            onClick={() => handleOpenRecent(project)}
+                            style={{ background: '#2ecc71', color: 'white', border: 'none', padding: '6px 10px', borderRadius: '4px', cursor: 'pointer', fontSize: '0.75rem' }}
+                          >
+                            Open
+                          </button>
+                          <button
+                            onClick={() => handleDeleteProject(project.id)}
+                            style={{ background: '#e74c3c', color: 'white', border: 'none', padding: '6px 10px', borderRadius: '4px', cursor: 'pointer', fontSize: '0.75rem' }}
+                          >
+                            Delete
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            <div style={{ background: '#fff', borderRadius: '8px', border: '1px solid #c2d1df', padding: '20px' }}>
+              <h3 style={{ marginTop: 0, color: '#002f5d' }}>Recent Activity</h3>
+              <div style={{ fontSize: '0.85rem', color: '#556' }}>
+                {recentProjects.slice(0, 5).map((project) => (
+                  <div key={project.id} style={{ marginBottom: '8px' }}>
+                    <strong>{project.name}</strong> updated {new Date(project.updatedAt).toLocaleString()}
+                  </div>
+                ))}
+                {recentProjects.length === 0 && <div>No recent activity.</div>}
+              </div>
+            </div>
+          </div>
+        )}
         {activeTab === 'analysis' && <WaterAnalysis waterData={waterData} setWaterData={setWaterData} />}
         {activeTab === 'pretreatment' && <PreTreatment waterData={waterData} pretreatment={pretreatment} setPretreatment={setPretreatment} systemConfig={systemConfig} />}
         {activeTab === 'design' && (
