@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 
 const SystemDesign = ({ membranes, systemConfig, setSystemConfig, projection, waterData, onRun }) => {
   const [showMembraneModal, setShowMembraneModal] = useState(false);
+  const [showFlowDiagram, setShowFlowDiagram] = useState(false);
   const [selectedStageForMembrane, setSelectedStageForMembrane] = useState(1);
   const [localPass1Stages, setLocalPass1Stages] = useState(null); // Local state for input while typing
 
@@ -227,6 +228,48 @@ const SystemDesign = ({ membranes, systemConfig, setSystemConfig, projection, wa
   const headerStyle = { background: '#004a80', color: 'white', padding: '4px 8px', fontWeight: 'bold', fontSize: '0.8rem', marginBottom: '10px' };
   const rowStyle = { display: 'flex', justifyContent: 'space-between', marginBottom: '4px', fontSize: '0.75rem' };
   const inputStyle = { width: '70px', textAlign: 'right', border: '1px solid #999' };
+
+  const getFeedTds = () => {
+    const ions = {
+      ca: Number(waterData?.ca) || 0,
+      mg: Number(waterData?.mg) || 0,
+      na: Number(waterData?.na) || 0,
+      k: Number(waterData?.k) || 0,
+      sr: Number(waterData?.sr) || 0,
+      ba: Number(waterData?.ba) || 0,
+      hco3: Number(waterData?.hco3) || 0,
+      so4: Number(waterData?.so4) || 0,
+      cl: Number(waterData?.cl) || 0,
+      no3: Number(waterData?.no3) || 0,
+      sio2: Number(waterData?.sio2) || 0,
+      po4: Number(waterData?.po4) || 0,
+      f: Number(waterData?.f) || 0,
+      b: Number(waterData?.b) || 0,
+      co2: Number(waterData?.co2) || 0,
+      co3: Number(waterData?.co3) || 0,
+      nh4: Number(waterData?.nh4) || 0
+    };
+    return Object.values(ions).reduce((sum, value) => sum + value, 0);
+  };
+
+  const formatNumber = (value, decimals = 1) => {
+    const num = Number(value);
+    return Number.isFinite(num) ? num.toFixed(decimals) : (0).toFixed(decimals);
+  };
+
+  const flowUnitLabel = systemConfig.flowUnit || 'gpm';
+  const feedTds = getFeedTds();
+  const rawFeedPh = Number(waterData?.ph) || 7.0;
+  const treatedFeedPh = Number(systemConfig.feedPh) || rawFeedPh;
+  const permTds = projection?.permeateParameters?.tds ?? 0;
+  const concTds = projection?.concentrateParameters?.tds ?? 0;
+  const permPh = projection?.permeateParameters?.ph ?? treatedFeedPh;
+  const concPh = projection?.concentrateParameters?.ph ?? treatedFeedPh;
+  const feedPressurePsi = projection?.calcFeedPressurePsi ?? '0.0';
+  const concPressurePsi = projection?.calcConcPressurePsi ?? '0.0';
+  const flowDiagramReady = systemConfig.designCalculated && projection;
+  const econdFactor = 1.9095;
+  const tdsToEcond = (value) => Math.round((Number(value) || 0) * econdFactor);
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '15px', fontFamily: 'Arial' }}>
@@ -513,6 +556,24 @@ const SystemDesign = ({ membranes, systemConfig, setSystemConfig, projection, wa
             }}>
               Run
             </button>
+            <button
+              onClick={() => {
+                if (!flowDiagramReady) return;
+                setShowFlowDiagram(true);
+              }}
+              style={{
+                background: flowDiagramReady ? 'linear-gradient(#2ecc71, #27ae60)' : 'linear-gradient(#bdc3c7, #95a5a6)',
+                color: 'white',
+                padding: '10px 30px',
+                borderRadius: '20px',
+                border: '1px solid #1e8449',
+                cursor: flowDiagramReady ? 'pointer' : 'not-allowed',
+                fontWeight: 'bold',
+                alignSelf: 'flex-start'
+              }}
+            >
+              Flow Diagram
+            </button>
           </div>
         </div>
       </div>
@@ -574,6 +635,141 @@ const SystemDesign = ({ membranes, systemConfig, setSystemConfig, projection, wa
                   <div style={{ fontSize: '0.7rem', color: '#666', marginTop: '4px' }}>{membrane.type}</div>
                 </button>
               ))}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showFlowDiagram && (
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          background: 'rgba(0, 0, 0, 0.5)',
+          display: 'flex',
+          justifyContent: 'center',
+          alignItems: 'center',
+          zIndex: 1000
+        }} onClick={() => setShowFlowDiagram(false)}>
+          <div style={{
+            background: 'white',
+            borderRadius: '8px',
+            width: '90%',
+            maxWidth: '1200px',
+            maxHeight: '90vh',
+            overflow: 'auto',
+            boxShadow: '0 4px 20px rgba(0,0,0,0.3)'
+          }} onClick={(e) => e.stopPropagation()}>
+            <div style={{ background: '#1f6fb2', color: 'white', padding: '12px 16px', fontWeight: 'bold', fontSize: '1rem' }}>
+              Flow Diagram
+            </div>
+            <div style={{ padding: '12px 16px', borderBottom: '1px solid #d6e1ed', display: 'flex', gap: '20px', fontSize: '0.85rem' }}>
+              <div>Project name: {waterData?.projectName || 'Project'}</div>
+              <div>Temperature: {((Number(waterData?.temp || 25) * 9) / 5 + 32).toFixed(1)} °F</div>
+              <div>Date: {new Date().toLocaleDateString()}</div>
+              <div>Membrane age, P1: {Number(systemConfig.membraneAge || 0).toFixed(1)} years</div>
+            </div>
+            <div style={{ padding: '20px' }}>
+              <svg viewBox="0 0 900 260" width="100%" height="260">
+                <line x1="40" y1="130" x2="240" y2="130" stroke="#1e6bd6" strokeWidth="6" />
+                <line x1="240" y1="130" x2="320" y2="130" stroke="#1e6bd6" strokeWidth="6" />
+                <line x1="320" y1="130" x2="380" y2="130" stroke="#1e6bd6" strokeWidth="6" />
+                <line x1="440" y1="130" x2="520" y2="130" stroke="#1e6bd6" strokeWidth="6" />
+                <line x1="520" y1="130" x2="660" y2="130" stroke="#1e6bd6" strokeWidth="6" />
+                <line x1="660" y1="130" x2="780" y2="130" stroke="#3cc7f4" strokeWidth="6" />
+                <line x1="660" y1="130" x2="660" y2="210" stroke="#35c84b" strokeWidth="6" />
+                <polygon points="90,110 120,110 135,130 120,150 90,150 75,130" fill="white" stroke="#222" strokeWidth="2" />
+                <text x="105" y="136" textAnchor="middle" fontSize="14" fontFamily="Arial">1</text>
+                <polygon points="210,110 240,110 255,130 240,150 210,150 195,130" fill="white" stroke="#222" strokeWidth="2" />
+                <text x="225" y="136" textAnchor="middle" fontSize="14" fontFamily="Arial">2</text>
+                <circle cx="380" cy="130" r="30" fill="white" stroke="#222" strokeWidth="3" />
+                <polygon points="372,115 402,130 372,145" fill="white" stroke="#222" strokeWidth="2" />
+                <polygon points="520,110 550,110 565,130 550,150 520,150 505,130" fill="white" stroke="#222" strokeWidth="2" />
+                <text x="535" y="136" textAnchor="middle" fontSize="14" fontFamily="Arial">3</text>
+                <rect x="660" y="95" width="140" height="70" fill="white" stroke="#222" strokeWidth="2" />
+                <polygon points="650,205 670,205 680,220 670,235 650,235 640,220" fill="white" stroke="#222" strokeWidth="2" />
+                <text x="660" y="226" textAnchor="middle" fontSize="14" fontFamily="Arial">4</text>
+                <polygon points="800,110 830,110 845,130 830,150 800,150 785,130" fill="white" stroke="#222" strokeWidth="2" />
+                <text x="815" y="136" textAnchor="middle" fontSize="14" fontFamily="Arial">5</text>
+                {systemConfig.chemical !== 'None' && (
+                  <>
+                    <text x="180" y="60" textAnchor="middle" fontSize="12" fontFamily="Arial" fill="#b83b2e">
+                      {systemConfig.chemical} Dosing
+                    </text>
+                    <line x1="180" y1="70" x2="180" y2="110" stroke="#b83b2e" strokeWidth="2" />
+                  </>
+                )}
+              </svg>
+
+              <div style={{ border: '1px solid #c9d3de', borderRadius: '4px', overflow: 'hidden' }}>
+                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.8rem', textAlign: 'center' }}>
+                  <thead style={{ background: '#f0f3f7' }}>
+                    <tr>
+                      <th style={{ border: '1px solid #c9d3de', padding: '6px', width: '140px' }}></th>
+                      {[1, 2, 3, 4, 5].map((n) => (
+                        <th key={n} style={{ border: '1px solid #c9d3de', padding: '6px' }}>{n}</th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr>
+                      <td style={{ border: '1px solid #c9d3de', padding: '6px', fontWeight: 'bold' }}>Flow ({flowUnitLabel})</td>
+                      <td style={{ border: '1px solid #c9d3de', padding: '6px' }}>{projection?.feedFlow ?? '0.00'}</td>
+                      <td style={{ border: '1px solid #c9d3de', padding: '6px' }}>{projection?.feedFlow ?? '0.00'}</td>
+                      <td style={{ border: '1px solid #c9d3de', padding: '6px' }}>{projection?.feedFlow ?? '0.00'}</td>
+                      <td style={{ border: '1px solid #c9d3de', padding: '6px' }}>{projection?.concentrateFlow ?? '0.00'}</td>
+                      <td style={{ border: '1px solid #c9d3de', padding: '6px' }}>{projection?.permeateFlow ?? '0.00'}</td>
+                    </tr>
+                    <tr>
+                      <td style={{ border: '1px solid #c9d3de', padding: '6px', fontWeight: 'bold' }}>Pressure (psi)</td>
+                      <td style={{ border: '1px solid #c9d3de', padding: '6px' }}>0</td>
+                      <td style={{ border: '1px solid #c9d3de', padding: '6px' }}>0</td>
+                      <td style={{ border: '1px solid #c9d3de', padding: '6px' }}>{feedPressurePsi}</td>
+                      <td style={{ border: '1px solid #c9d3de', padding: '6px' }}>{concPressurePsi}</td>
+                      <td style={{ border: '1px solid #c9d3de', padding: '6px' }}>0</td>
+                    </tr>
+                    <tr>
+                      <td style={{ border: '1px solid #c9d3de', padding: '6px', fontWeight: 'bold' }}>TDS (mg/L)</td>
+                      <td style={{ border: '1px solid #c9d3de', padding: '6px' }}>{formatNumber(feedTds, 1)}</td>
+                      <td style={{ border: '1px solid #c9d3de', padding: '6px' }}>{formatNumber(feedTds, 1)}</td>
+                      <td style={{ border: '1px solid #c9d3de', padding: '6px' }}>{formatNumber(feedTds, 1)}</td>
+                      <td style={{ border: '1px solid #c9d3de', padding: '6px' }}>{formatNumber(concTds, 1)}</td>
+                      <td style={{ border: '1px solid #c9d3de', padding: '6px' }}>{formatNumber(permTds, 1)}</td>
+                    </tr>
+                    <tr>
+                      <td style={{ border: '1px solid #c9d3de', padding: '6px', fontWeight: 'bold' }}>pH</td>
+                      <td style={{ border: '1px solid #c9d3de', padding: '6px' }}>{formatNumber(rawFeedPh, 2)}</td>
+                      <td style={{ border: '1px solid #c9d3de', padding: '6px' }}>{formatNumber(treatedFeedPh, 1)}</td>
+                      <td style={{ border: '1px solid #c9d3de', padding: '6px' }}>{formatNumber(treatedFeedPh, 1)}</td>
+                      <td style={{ border: '1px solid #c9d3de', padding: '6px' }}>{formatNumber(concPh, 1)}</td>
+                      <td style={{ border: '1px solid #c9d3de', padding: '6px' }}>{formatNumber(permPh, 2)}</td>
+                    </tr>
+                    <tr>
+                      <td style={{ border: '1px solid #c9d3de', padding: '6px', fontWeight: 'bold' }}>Econd (µS/cm)</td>
+                      <td style={{ border: '1px solid #c9d3de', padding: '6px' }}>{tdsToEcond(feedTds)}</td>
+                      <td style={{ border: '1px solid #c9d3de', padding: '6px' }}>{tdsToEcond(feedTds)}</td>
+                      <td style={{ border: '1px solid #c9d3de', padding: '6px' }}>{tdsToEcond(feedTds)}</td>
+                      <td style={{ border: '1px solid #c9d3de', padding: '6px' }}>{tdsToEcond(concTds)}</td>
+                      <td style={{ border: '1px solid #c9d3de', padding: '6px' }}>{tdsToEcond(permTds)}</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'flex-end', padding: '12px 16px' }}>
+              <button onClick={() => setShowFlowDiagram(false)} style={{
+                background: '#1f6fb2',
+                color: 'white',
+                border: 'none',
+                borderRadius: '20px',
+                padding: '8px 24px',
+                cursor: 'pointer',
+                fontWeight: 'bold'
+              }}>
+                Cancel
+              </button>
             </div>
           </div>
         </div>
