@@ -1,16 +1,18 @@
 /* ================= IMSDesign Hydraulic Engine (REFINED) ================= */
 
-const FLOW_TO_M3H = {
-    gpm: 0.2271,
-    gpd: 0.0001577,
-    mgd: 157.725,
-    migd: 189.27,
-    'm3/h': 1,
-    'm3/d': 1 / 24,
-    mld: 41.667
-  };
+export const FLOW_TO_M3H = {
+  gpm: 0.2271247,
+  gpd: 0.000157725,
+  mgd: 157.725,
+  migd: 189.27,
+  m3h: 1,
+  m3d: 1 / 24,
+  mld: 41.667,
+  lph: 0.001,
+  lpm: 0.06
+};
 
-export const calculateSystem = (inputs) => {
+  export const calculateSystem = (inputs) => {  
   const {
     totalFlow,
     recovery = 55,
@@ -38,18 +40,21 @@ export const calculateSystem = (inputs) => {
   if (co2Val === 0 && hco3Val > 0) {
     const pKa1 = 6.35;
     const ratio = Math.pow(10, pKa1 - feedPhValue);
-    normalizedFeedIons.co2 = Number((hco3Val * ratio).toFixed(3));
+    const co2Value = hco3Val * ratio;
+    normalizedFeedIons.co2 = Number(co2Value < 0.001 ? '<0.001' : co2Value.toFixed(3));
   }
   if (co3Val === 0 && hco3Val > 0 && feedPhValue >= 8.2) {
     const pKa2 = 10.33;
     const ratio = Math.pow(10, feedPhValue - pKa2);
-    normalizedFeedIons.co3 = Number((hco3Val * ratio).toFixed(3));
+    const co3Value = hco3Val * ratio;
+    normalizedFeedIons.co3 = Number(co3Value < 0.001 ? '<0.001' : co3Value.toFixed(3));
   }
   const tempC = (Number(tempF) - 32) * (5 / 9);
   const feedFlowTotal = recFrac > 0 ? Number(totalFlow) / recFrac : 0;
   const concentrateFlowTotal = feedFlowTotal - Number(totalFlow || 0);
-  const feedFlowPerVessel = Number(vessels) > 0 ? feedFlowTotal / Number(vessels) : 0;
-  const concFlowPerVessel = Number(vessels) > 0 ? concentrateFlowTotal / Number(vessels) : 0;
+  // const feedFlowPerVessel = feedFlowTotal / Number(vessels);
+   const feedFlowPerVessel = Number(totalFlow || 0) / (Number(vessels) || 1);
+   const concFlowPerVessel = feedFlowPerVessel - Number(totalFlow || 0) / (Number(vessels) || 1);
   const avgFlowPerVessel = (feedFlowPerVessel + concFlowPerVessel) / 2;
 
   const activeStages = Array.isArray(stages) ? stages.filter(stage => Number(stage?.vessels) > 0) : [];
@@ -78,9 +83,17 @@ export const calculateSystem = (inputs) => {
   }
 
   const effectiveAreaSqFt = totalAreaSqFt > 0 ? totalAreaSqFt : (totalElements * areaPerElement);
-  const avgFlux = effectiveAreaSqFt > 0 ? (Number(totalFlow) * 264.172 * 24) / effectiveAreaSqFt : 0;
+  const permeateFlowPerVessel = Number(totalFlow || 0) / (Number(vessels) || 1);
+  const stageRecoveryVessel = permeateFlowPerVessel / feedFlowPerVessel;
+  const avgFlux =
+  totalElements > 0
+    ? Number(totalFlow) / (totalElements * 0.0556)
+    : 0;
+
   const highestFlux = avgFlux * (1 + (recFrac * 0.32));
-  const beta = Math.exp(0.7 * recFrac);
+  const recFracVessel = Number(totalFlow || 0) / feedFlowTotal;
+  const highestBeta = Math.exp(0.7 * ((feedFlowPerVessel * vessels)));
+  const beta = highestBeta;
   const cf = recFrac > 0 && recFrac < 1 ? Math.log(1 / (1 - recFrac)) / recFrac : 1;
 
   const membraneRejection = Math.min(Math.max(Number(activeMembrane?.rejection) || 99.7, 80), 99.9);
@@ -188,35 +201,12 @@ export const calculateSystem = (inputs) => {
   const aEffective = aBase * Math.pow(1 - fluxDeclinePct / 100, membraneAgeYears);
   const spFactor = Math.pow(1 + spIncreasePct / 100, membraneAgeYears);
 
-  const pressureTerm = (avgFlux / (TCF * (aEffective || aBase))) * foulingFactorValue;
-  const feedPressureBar = (pressureTerm + osmoticPressure + 1.2) * spFactor;
-  const baseExponent = Number(activeMembrane.dpExponent) || 1.75;
-  const flowExponent = feedFlowPerVessel > 4.5 ? Math.max(baseExponent, 1.75) : baseExponent;
-  const pressureDrop = (Number(elementsPerVessel) || 0)
-    * (Number(activeMembrane.kFb) || 0.315)
-    * Math.pow(avgFlowPerVessel, flowExponent)
-    * (1 + 0.1 * (beta - 1));
-  const concPressureBar = feedPressureBar - pressureDrop;
-
-  const M3H_TO_GPM = 4.402867;
   const BAR_TO_PSI = 14.5038;
-  const unitFactor = FLOW_TO_M3H[flowUnit] ?? 1;
+  const M3H_TO_GPM = 4.402867;
 
-  const totalStageVessels = activeStages.reduce((sum, stage) => sum + (Number(stage?.vessels) || 0), 0);
-  const totalStageAreaSqFt = activeStages.reduce((sum, stage) => {
-    const stageVessels = Number(stage?.vessels) || 0;
-    const stageElements = Number(stage?.elementsPerVessel) || 0;
-    const stageMembrane = membranes.find(m => m.id === stage?.membraneModel) || activeMembrane;
-    const stageArea = Number(stageMembrane?.area) || areaPerElement;
-    return sum + stageVessels * stageElements * stageArea;
-  }, 0);
   let currentFeedFlowM3h = feedFlowTotal;
-  let currentFeedPressureBar = feedPressureBar;
+  let currentFeedPressureBar = 0;
   const stageResults = [];
-  let maxStageFeedFlowM3h = feedFlowPerVessel;
-  let maxStageHighestFlux = highestFlux;
-  let maxStageBeta = beta;
-  let minStageConcPressureBar = concPressureBar;
 
   activeStages.forEach((stage, index) => {
     const stageVessels = Number(stage?.vessels) || 0;
@@ -225,81 +215,66 @@ export const calculateSystem = (inputs) => {
 
     if (stageVessels === 0 || stageElements === 0) return;
 
-    const stageAreaSqFt = stageVessels * stageElements * (Number(stageMembrane?.area) || 400);
-    const stagePermeateFlowM3h = totalStageAreaSqFt > 0
-      ? Number(totalFlow) * (stageAreaSqFt / totalStageAreaSqFt)
-      : (totalStageVessels > 0 ? Number(totalFlow) * (stageVessels / totalStageVessels) : 0);
+    const stagePermeateFlowM3h = index === 0 ? totalFlow / M3H_TO_GPM : currentFeedFlowM3h * recFrac;
     const stageConcentrateFlowM3h = currentFeedFlowM3h - stagePermeateFlowM3h;
     const perVesselFeedFlowM3h = stageVessels > 0 ? currentFeedFlowM3h / stageVessels : 0;
     const perVesselConcFlowM3h = stageVessels > 0 ? stageConcentrateFlowM3h / stageVessels : 0;
     const perVesselAvgFlowM3h = (perVesselFeedFlowM3h + perVesselConcFlowM3h) / 2;
 
-    const stageAvgFlux = stageAreaSqFt > 0 ? (stagePermeateFlowM3h * 264.172 * 24) / stageAreaSqFt : 0;
-    const stageRecovery = currentFeedFlowM3h > 0 ? stagePermeateFlowM3h / currentFeedFlowM3h : 0;
-    const stageHighestFlux = stageAvgFlux * (1 + (stageRecovery * 0.32));
+    const stagePermeateFlowGpm = stagePermeateFlowM3h * M3H_TO_GPM;
+    const stageAvgFlux = stagePermeateFlowGpm / (stageVessels * stageElements * 0.0556);
+    const stageRecovery = stagePermeateFlowM3h / currentFeedFlowM3h;
+    const stageHighestFlux = stageAvgFlux * (1 + stageRecovery * 0.32);
     const stageBeta = Math.exp(0.7 * stageRecovery);
 
-    const kfb = Number(stageMembrane?.kFb) || 0.315;
-    const baseExponent = Number(stageMembrane?.dpExponent) || 1.75;
-    const flowExponent = perVesselFeedFlowM3h > 4.5 ? Math.max(baseExponent, 1.75) : baseExponent;
-    const stagePressureDropBar = stageElements * kfb * Math.pow(perVesselAvgFlowM3h, flowExponent) * (1 + 0.1 * (stageBeta - 1));
-
-    const stageFeedPressureBar = currentFeedPressureBar;
+    const aEffectiveStage = (stageMembrane.aValue || 0.12) * Math.pow(1 - fluxDeclinePct / 100, membraneAgeYears);
+    const stageFeedPressureBar = (stageAvgFlux / aEffectiveStage) * foulingFactorValue * 0.0556 + osmoticPressure;
+    const flowExponent = perVesselFeedFlowM3h > 4.5 ? Math.max(stageMembrane.dpExponent || 1.75, 1.75) : stageMembrane.dpExponent || 1.75;
+    const stagePressureDropBar = stageElements * (stageMembrane.kFb || 0.315) * Math.pow(perVesselAvgFlowM3h, flowExponent) * (1 + 0.1 * (stageBeta - 1));
     const stageConcPressureBar = stageFeedPressureBar - stagePressureDropBar;
-
-    const feedFlowDisplay = perVesselFeedFlowM3h / unitFactor;
-    const concFlowDisplay = perVesselConcFlowM3h / unitFactor;
 
     stageResults.push({
       index: index + 1,
       vessels: stageVessels,
       feedPressurePsi: (stageFeedPressureBar * BAR_TO_PSI).toFixed(1),
       concPressurePsi: (stageConcPressureBar * BAR_TO_PSI).toFixed(1),
-      feedFlowM3h: perVesselFeedFlowM3h.toFixed(2),
-      concFlowM3h: perVesselConcFlowM3h.toFixed(2),
       feedFlowGpm: (perVesselFeedFlowM3h * M3H_TO_GPM).toFixed(2),
       concFlowGpm: (perVesselConcFlowM3h * M3H_TO_GPM).toFixed(2),
-      feedFlowDisplay: feedFlowDisplay.toFixed(2),
-      concFlowDisplay: concFlowDisplay.toFixed(2),
       fluxGfd: stageAvgFlux.toFixed(1),
       highestFluxGfd: stageHighestFlux.toFixed(1),
       highestBeta: stageBeta.toFixed(2)
     });
 
-    maxStageFeedFlowM3h = Math.max(maxStageFeedFlowM3h, perVesselFeedFlowM3h);
-    maxStageHighestFlux = Math.max(maxStageHighestFlux, stageHighestFlux);
-    maxStageBeta = Math.max(maxStageBeta, stageBeta);
-    minStageConcPressureBar = Math.min(minStageConcPressureBar, stageConcPressureBar);
-
-    currentFeedFlowM3h = Math.max(stageConcentrateFlowM3h, 0);
+    currentFeedFlowM3h = stageConcentrateFlowM3h;
     currentFeedPressureBar = stageConcPressureBar;
   });
 
+  const systemHighestFlux = stageResults.length > 0 ? Math.max(...stageResults.map(s => Number(s.highestFluxGfd))) : highestFlux;
+  const systemHighestBeta = stageResults.length > 0 ? Math.max(...stageResults.map(s => Number(s.highestBeta))) : beta;
+
   const designWarnings = [];
-  const warningHighestFlux = stageResults.length > 0 ? maxStageHighestFlux : highestFlux;
-  const warningFeedFlowM3h = stageResults.length > 0 ? maxStageFeedFlowM3h : feedFlowPerVessel;
-  const warningMinConcPressureBar = stageResults.length > 0 ? minStageConcPressureBar : concPressureBar;
-  if (warningHighestFlux > 20) designWarnings.push('Design limits exceeded: Flux too high');
-  if (warningFeedFlowM3h > 4.5) designWarnings.push('Design limits exceeded: Feed flow per vessel too high');
-  if (warningMinConcPressureBar < 0) designWarnings.push('Design limits exceeded: Concentrate pressure is negative');
+  
+  if (systemHighestFlux > 20) designWarnings.push('Design limits exceeded: Flux too high');
+  if (feedFlowPerVessel > 4.5) designWarnings.push('Design limits exceeded: Feed flow per vessel too high');
+  if (currentFeedPressureBar < 0) designWarnings.push('Design limits exceeded: Concentrate pressure is negative');
   if (!Number.isFinite(osmoticPressure) || osmoticPressure < 0) designWarnings.push('Design limits exceeded: Osmotic pressure invalid');
 
-  const systemHighestFlux = stageResults.length > 0 ? maxStageHighestFlux : highestFlux;
-  const systemHighestBeta = stageResults.length > 0 ? maxStageBeta : beta;
+ 
 
   return {
     results: {
-      avgFlux: avgFlux.toFixed(1),
-      highestFlux: systemHighestFlux.toFixed(1),
-      feedFlowVessel: feedFlowPerVessel.toFixed(2),
-      concFlowVessel: concFlowPerVessel.toFixed(2),
-      feedPressure: feedPressureBar.toFixed(1),
-      concPressure: concPressureBar.toFixed(1),
-      highestBeta: systemHighestBeta.toFixed(2),
-      lsi: lsi.toFixed(2),
-      permTDS: permeateTDS.toFixed(2),
-      concTDS: concentrateTDS.toFixed(2),
-      permPH: permeatePh.toFixed(1)
+      avgFlux: Number(avgFlux.toFixed(2)),
+      highestFlux: Number(systemHighestFlux.toFixed(2)),
+      feedFlowVessel: Number(feedFlowPerVessel.toFixed(2)),
+      concFlowVessel: Number(concFlowPerVessel.toFixed(2)),
+      feedPressure: Number(feedFlowPerVessel > 0 ? (feedFlowPerVessel / aEffective) * foulingFactorValue * 0.0556 + osmoticPressure : 0).toFixed(2),
+      concPressure: Number(feedFlowPerVessel > 0 ? (feedFlowPerVessel / aEffective) * foulingFactorValue * 0.0556 + osmoticPressure : 0).toFixed(2),
+      highestBeta: systemHighestBeta < 0.001 ? '<0.001' : systemHighestBeta.toFixed(3),
+      lsi: Number(lsi.toFixed(2)),
+      permTDS: Number(permeateTDS.toFixed(2)),
+      concTDS: Number(concentrateTDS.toFixed(2)),
+      permPH: Number(permeatePh.toFixed(1)),
+      
     },
     permeateIons,
     concentrateIons,
@@ -310,6 +285,11 @@ export const calculateSystem = (inputs) => {
     designWarnings
   };
 };
+
+
+
+
+
 
 export const calculateIonPassage = (feedIons, systemData) => {
   const { recovery, tempC, vessels, feedPH } = systemData;
@@ -383,66 +363,47 @@ export const calculateIonPassage = (feedIons, systemData) => {
 };
   
   export const runHydraulicBalance = (config, membrane) => {
-    /* ---------- 1. RAW INPUTS & SAFETY ---------- */
-    const permeateInput = Number(config.permeateFlow) || 0;
-    const unit = config.flowUnit || 'm3/h';
-    const unitFactor = FLOW_TO_M3H[unit] ?? 1;
-  
-    // Clamp recovery between 1% and 99% to prevent Infinity errors
-    const recoveryPercent = Math.min(Math.max(Number(config.recovery) || 15, 1), 99);
-    const recovery = recoveryPercent / 100;
-  
-    const vessels = Number(config.stage1Vessels) || 0;
-    const elementsPerVessel = Number(config.elementsPerVessel) || 0;
-    
-    // Use membrane area from object, fallback to 400 if missing
-    const elementArea = Number(membrane?.area) || 400;
-  
-    const membraneAge = Number(config.membraneAge) || 0;
-    const fluxDeclinePct = Number(config.fluxDeclinePerYear) || 0;
-  
-    /* ---------- 2. HYDRAULIC BALANCE (m3/h) ---------- */
-    const permeate_m3h = permeateInput * unitFactor;
-    const feed_m3h = permeate_m3h / recovery;
-    const concentrate_m3h = feed_m3h - permeate_m3h;
-  
-    /* ---------- 3. FLUX CALCULATIONS ---------- */
-    const totalElements = vessels * elementsPerVessel;
-    const totalArea_m2 = totalElements * elementArea;
-  
-    let avgFlux_LMH = 0;
-    if (totalArea_m2 > 0) {
-      avgFlux_LMH = (permeate_m3h * 1000) / totalArea_m2;
-    }
-  
-    // IMSDesign uses 0.589 to convert LMH to GFD
-    const flux_GFD = avgFlux_LMH * 0.589;
-  
-    /* ---------- 4. AGEING / FOULING ---------- */
-    // Formula: (1 - decline)^age
-    const foulingFactor = Math.pow(1 - fluxDeclinePct / 100, membraneAge) || 1;
-  
-    /* ---------- 5. CHEMICAL MASS FLOW ---------- */
-    let chemical_kg_hr = 0;
-    const dose = Number(config.chemicalDose) || 0;
-    if (config.doseUnit === 'mg/l') {
-      chemical_kg_hr = (dose * feed_m3h) / 1000;
-    } else if (config.doseUnit === 'lb/hr') {
-      chemical_kg_hr = dose * 0.4536;
-    } else {
-      chemical_kg_hr = dose;
-    }
-  
-    /* ---------- 6. UNIT BACK-CONVERSION ---------- */
-    // Convert m3/h results back to the user's display unit (e.g. gpm)
-    const feedDisplay = feed_m3h / unitFactor;
-    const concDisplay = concentrate_m3h / unitFactor;
-  
-    return {
-      feedFlow: feedDisplay.toFixed(2),
-      concentrateFlow: concDisplay.toFixed(2),
-      permeateFlow: permeateInput.toFixed(2),
-      totalElements: totalElements,
-      unit: unit
-    };
+  /* ---------- 1. RAW INPUTS & SAFETY ---------- */
+  const permeateInput = Number(config.permeateFlow) || 0; // user input
+  const unit = config.flowUnit || 'gpm';
+  const unitFactor = FLOW_TO_M3H[unit] ?? 1;
+
+  // Clamp recovery between 1% and 99%
+  const recoveryPercent = Math.min(Math.max(Number(config.recovery) || 15, 1), 99);
+  const recovery = recoveryPercent / 100;
+
+  const vessels = Number(config.stage1Vessels) || 1; // default 1 vessel
+  const elementsPerVessel = Number(config.elementsPerVessel) || 7; // default 7 membranes/vessel
+
+  // Membrane area (not needed for this formula, but keep for completeness)
+  const elementArea = Number(membrane?.area) || 400;
+
+  /* ---------- 2. HYDRAULIC BALANCE ---------- */
+  // Convert permeate flow to m3/h for internal calculations
+  const permeate_m3h = permeateInput * unitFactor;
+  const feed_m3h = permeate_m3h / recovery;
+  const concentrate_m3h = feed_m3h - permeate_m3h;
+
+  /* ---------- 3. AVERAGE FLUX CALCULATION (GFD) ---------- */
+  let calcFluxGfd = 0;
+  const totalElements = vessels * elementsPerVessel;
+
+  if (totalElements > 0) {
+    calcFluxGfd = permeateInput / (totalElements * 0.0556);
+  }
+
+  /* ---------- 4. UNIT BACK-CONVERSION ---------- */
+  const feedDisplay = feed_m3h / unitFactor;
+  const concDisplay = concentrate_m3h / unitFactor;
+
+  return {
+    feedFlow: feedDisplay.toFixed(2),
+    concentrateFlow: concDisplay.toFixed(2),
+    permeateFlow: permeateInput.toFixed(2),
+    totalElements: totalElements,
+    calcFluxGfd: calcFluxGfd.toFixed(1), // This is your formula result for UI
+    unit: unit
   };
+};
+
+

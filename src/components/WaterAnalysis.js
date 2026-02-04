@@ -21,70 +21,70 @@ const WaterAnalysis = ({ waterData, setWaterData }) => {
   };
 
   const WATER_TYPE_PROFILES = {
-    'Municipal Waste': {
-      type: 'absolute',
-      ions: {
-        na: 786.98,
-        cl: 1212.92,
-        hco3: 0.5
-      }
-    },
-    'Brackish Well Non-Fouling': {
-      type: 'ratio',
-      ions: {
-        ca: 0.12,
-        mg: 0.05,
-        na: 0.32,
-        k: 0.01,
-        hco3: 0.18,
-        so4: 0.07,
-        cl: 0.23,
-        no3: 0.01,
-        sio2: 0.01
-      }
-    },
-    'Brackish Well High-Fouling': {
-      type: 'ratio',
-      ions: {
-        ca: 0.14,
-        mg: 0.07,
-        na: 0.28,
-        k: 0.01,
-        hco3: 0.22,
-        so4: 0.08,
-        cl: 0.18,
-        no3: 0.01,
-        sio2: 0.01
-      }
-    },
-    'Brackish Surface': {
-      type: 'ratio',
-      ions: {
-        ca: 0.1,
-        mg: 0.06,
-        na: 0.3,
-        k: 0.01,
-        hco3: 0.2,
-        so4: 0.1,
-        cl: 0.21,
-        no3: 0.01,
-        sio2: 0.01
-      }
-    },
-    'Sea Well': {
-      type: 'ratio',
-      ions: {
-        ca: 0.015,
-        mg: 0.05,
-        na: 0.305,
-        k: 0.01,
-        hco3: 0.005,
-        so4: 0.045,
-        cl: 0.565,
-        no3: 0.002,
-        sio2: 0.003
-      }
-    },
+//     'Municipal Waste': {
+//       type: 'absolute',
+//       ions: {
+//         na: 786.98,
+//         cl: 1212.92,
+//         hco3: 0.5
+//       }
+//     },
+//     'Brackish Well Non-Fouling': {
+//         type: 'ratio',
+//       ions: {
+//         ca: 0.12,
+//         mg: 0.05,
+//         na: 0.32,
+//         k: 0.01,
+//         hco3: 0.18,
+//         so4: 0.07,
+//         cl: 0.23,
+//         no3: 0.01,
+//         sio2: 0.01
+//     }
+//       },
+
+//      'Brackish Well High-Fouling': {
+//     ions: {
+//       ca: 0.07,
+//       mg: 0.04,
+//       na: 0.25,
+//       k: 0.00,
+//       hco3: 0.05,
+//       so4: 0.04,
+//       cl: 0.62,
+//       no3: 0.00,
+//       sio2: 0.00
+//     }
+// },
+//     'Brackish Surface': {
+//       type: 'ratio',
+//       ions: {
+//         ca: 0.1,
+//         mg: 0.06,
+//         na: 0.3,
+//         k: 0.01,
+//         hco3: 0.2,
+//         so4: 0.1,
+//         cl: 0.21,
+//         no3: 0.01,
+//         sio2: 0.01
+//       }
+//     },
+//     'Sea Well': {
+//       type: 'ratio',
+//       ions: {
+//         ca: 0.015,
+//         mg: 0.05,
+//         na: 0.305,
+//         k: 0.01,
+//         hco3: 0.005,
+//         so4: 0.045,
+//         cl: 0.565,
+//         no3: 0.002,
+//         sio2: 0.003
+//       }
+//     },
     'Sea Surface': {
       type: 'absolute',
       ions: {
@@ -93,83 +93,89 @@ const WaterAnalysis = ({ waterData, setWaterData }) => {
         hco3: 0.5
       }
     },
-    'Industrial Waste': {
-      type: 'ratio',
-      ions: {
-        ca: 0.08,
-        mg: 0.04,
-        na: 0.35,
-        k: 0.02,
-        hco3: 0.12,
-        so4: 0.1,
-        cl: 0.26,
-        no3: 0.01,
-        sio2: 0.02
-      }
-    },
-    'RO Permeate': {
-      type: 'ratio',
-      ions: {
-        na: 0.4,
-        cl: 0.6
-      }
-    },
-    'Well Water': {
-      type: 'ratio',
-      ions: {
-        ca: 0.12,
-        mg: 0.08,
-        na: 0.2,
-        k: 0.01,
-        hco3: 0.22,
-        so4: 0.1,
-        cl: 0.25,
-        no3: 0.01,
-        sio2: 0.01
-      }
-    }
+    // 'Industrial Waste': {
+    //   type: 'ratio',
+    //   ions: {
+    //     ca: 0.08,
+    //     mg: 0.04,
+    //     na: 0.35,
+    //     k: 0.02,
+    //     hco3: 0.12,
+    //     so4: 0.1,
+    //     cl: 0.26,
+    //     no3: 0.01,
+    //     sio2: 0.02
+    //   }
+    // },
+    // 'RO Permeate': {
+    //   type: 'ratio',
+    //   ions: {
+    //     na: 0.4,
+    //     cl: 0.6
+    //   }
+    // },
+    // 'Well Water': {
+    //   type: 'ratio',
+    //   ions: {
+    //     ca: 0.12,
+    //     mg: 0.08,
+    //     na: 0.2,
+    //     k: 0.01,
+    //     hco3: 0.22,
+    //     so4: 0.1,
+    //     cl: 0.25,
+    //     no3: 0.01,
+    //     sio2: 0.01
+    //   }
+    // }
   };
 
-  const applyTdsProfile = (tdsValue, waterType) => {
-    const tds = Number(tdsValue) || 0;
-    if (tds <= 0) return;
-    const profile = WATER_TYPE_PROFILES[waterType] || WATER_TYPE_PROFILES['Well Water'];
-    const updated = {
-      ca: 0,
-      mg: 0,
-      na: 0,
-      k: 0,
-      hco3: 0,
-      so4: 0,
-      cl: 0,
-      no3: 0,
-      sio2: 0,
-      nh4: waterData.nh4,
-      sr: waterData.sr,
-      ba: waterData.ba,
-      po4: waterData.po4,
-      f: waterData.f,
-      b: waterData.b,
-      co2: waterData.co2,
-      co3: waterData.co3
-    };
-    if (profile.type === 'absolute') {
-      const baseSum = Object.values(profile.ions).reduce((sum, value) => sum + (Number(value) || 0), 0);
-      const scale = baseSum > 0 ? tds / baseSum : 0;
-      Object.keys(profile.ions).forEach((key) => {
-        updated[key] = Number((Number(profile.ions[key]) * scale).toFixed(2));
-      });
-    } else {
-      Object.keys(profile.ions).forEach((key) => {
-        updated[key] = Number((tds * profile.ions[key]).toFixed(2));
-      });
-    }
-    setWaterData({
-      ...waterData,
-      calculatedTds: Number(tds.toFixed(0)),
-      ...updated
-    });
+  const applyTdsProfile = (tdsValue) => {
+  const tds = Number(tdsValue) || 0;
+  if (tds <= 0) return;
+
+  // Equivalent weights
+  const EW_NA = EQ_WEIGHTS.na;   // 23
+  const EW_CL = EQ_WEIGHTS.cl;   // 35.45
+
+  // Step 1: calculate total meq/L (Na–Cl water)
+  const totalMeq = tds / (EW_NA + EW_CL);
+
+  // Step 2: convert meq/L → mg/L
+  const na = totalMeq * EW_NA;
+  const cl = totalMeq * EW_CL;
+
+  const updated = {
+    ca: 0,
+    mg: 0,
+    k: 0,
+    hco3: 0,
+    so4: 0,
+    no3: 0,
+    sio2: 0,
+
+    // calculated ions
+    na: Number(na.toFixed(2)),
+    cl: Number(cl.toFixed(2)),
+
+    // preserve user-entered trace species
+    nh4: waterData.nh4,
+    sr: waterData.sr,
+    ba: waterData.ba,
+    po4: waterData.po4,
+    f: waterData.f,
+    b: waterData.b,
+    co2: waterData.co2,
+    co3: waterData.co3
   };
+
+  setWaterData({
+    ...waterData,
+    calculatedTds: Math.round(tds),
+    ...updated
+  });
+};
+
 
   // --- LOGIC: IONIC BALANCE CALCULATION ---
   const balanceResults = useMemo(() => {
@@ -266,6 +272,15 @@ const WaterAnalysis = ({ waterData, setWaterData }) => {
     }
   };
 
+  const handleReset = () => {
+    setWaterData({
+      ...waterData,
+      waterType: 'Well Water',
+      calculatedTds: 0,
+      pretreatment: 'Conventional'
+    });
+  };
+
   const handleInputChange = (key, val) => {
     if (key === 'calculatedTds') {
       setWaterData({ ...waterData, calculatedTds: val });
@@ -295,12 +310,20 @@ const WaterAnalysis = ({ waterData, setWaterData }) => {
       <div style={cardStyle}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px' }}>
           <h3 style={{ margin: 0, color: '#002f5d' }}>Feed Water Composition</h3>
-          <button 
-            onClick={handleAutoBalance}
-            style={{ background: '#3498db', color: 'white', border: 'none', padding: '8px 12px', borderRadius: '4px', cursor: 'pointer', fontSize: '0.8rem' }}
-          >
-            ⚖️ Auto-Balance (Na/Cl)
-          </button>
+          <div style={{ display: 'flex', gap: '10px' }}>
+            <button 
+              onClick={handleAutoBalance}
+              style={{ background: '#3498db', color: 'white', border: 'none', padding: '8px 12px', borderRadius: '4px', cursor: 'pointer', fontSize: '0.8rem' }}
+            >
+              ⚖️ Auto-Balance (Na/Cl)
+            </button>
+            <button 
+              onClick={handleReset}
+              style={{ background: '#e74c3c', color: 'white', border: 'none', padding: '8px 12px', borderRadius: '4px', cursor: 'pointer', fontSize: '0.8rem' }}
+            >
+              🔄 Reset
+            </button>
+          </div>
         </div>
 
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '15px', marginBottom: '15px' }}>

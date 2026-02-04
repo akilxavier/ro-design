@@ -28,9 +28,9 @@ const App = () => {
   const DEFAULT_SYSTEM_CONFIG = {
     // Inputs (follow IMSDesign layout: System-level total + trains; Train values are calculated)
     feedPh: 7.0,
-    recovery: 55,
+    recovery: 0,
     flowUnit: 'gpm', // gpm/gpd/mgd/migd/m3/h/m3/d/mld
-    permeateFlow: 77, // train permeate flow in selected unit
+    permeateFlow: 0, // train permeate flow in selected unit
     numTrains: 1,
 
     // Array specification
@@ -40,12 +40,12 @@ const App = () => {
     membraneModel: 'espa2ld',
     pass1Stages: 1, // Initially only 1 stage is active
     stages: [
-      { membraneModel: 'espa2ld', elementsPerVessel: 6, vessels: 4 },
-      { membraneModel: 'espa2ld', elementsPerVessel: 6, vessels: 0 },
-      { membraneModel: 'espa2ld', elementsPerVessel: 6, vessels: 0 },
-      { membraneModel: 'espa2ld', elementsPerVessel: 6, vessels: 0 },
-      { membraneModel: 'espa2ld', elementsPerVessel: 6, vessels: 0 },
-      { membraneModel: 'espa2ld', elementsPerVessel: 6, vessels: 0 }
+      { membraneModel: 'espa2ld', elementsPerVessel: 7, vessels: 3 },
+      { membraneModel: 'espa2ld', elementsPerVessel: 7, vessels: 0 },
+      { membraneModel: 'espa2ld', elementsPerVessel: 7, vessels: 0 },
+      { membraneModel: 'espa2ld', elementsPerVessel: 7, vessels: 0 },
+      { membraneModel: 'espa2ld', elementsPerVessel: 7, vessels: 0 },
+      { membraneModel: 'espa2ld', elementsPerVessel: 7, vessels: 0 }
     ],
 
     // Flux display
@@ -250,13 +250,23 @@ const App = () => {
     const stageResults = calcResults?.stageResults || [];
     
     // Calculate flux - always calculate, but only display if designCalculated is true
-    let rawFluxGFD = 0;
-    let rawFluxLMH = 0;
-    if (totalArea_ft2 > 0 && perTrainProduct_gpd > 0) {
-      rawFluxGFD = perTrainProduct_gpd / totalArea_ft2;
-    }
-    if (totalArea_m2 > 0 && perTrainProduct_m3h > 0) {
-      rawFluxLMH = (perTrainProduct_m3h * 1000) / totalArea_m2;
+    // Formula: Average Flux (gfd) = Permeate flow / (No. of Vessels × Membranes/Vessel × 0.0556)
+    const permeateFlowGpm = perTrainProduct_m3h * 4.402867;
+    const avgFlux =
+  totalElements > 0
+    ? permeateFlowGpm / (totalElements * 0.0556)
+    : 0;
+
+    let rawFluxGFD = calcResults?.results?.avgFlux ?? avgFlux;
+    let rawFluxLMH = rawFluxGFD * 1.699; // 1 GFD = 1.699 LMH
+    
+    if (!calcResults?.results) {
+        if (totalElements > 0 && perTrainProduct_m3h > 0) {
+            rawFluxGFD = (perTrainProduct_m3h * 4.402867) / (totalElements * 0.0556);
+        }
+        if (totalArea_m2 > 0 && perTrainProduct_m3h > 0) {
+            rawFluxLMH = (perTrainProduct_m3h * 1000) / totalArea_m2;
+        }
     }
     
     // Only show flux value if designCalculated is true, otherwise show 0
@@ -420,6 +430,11 @@ const App = () => {
     const osmoticP = calcResults?.concentrateParameters?.osmoticPressure != null
       ? Number(calcResults.concentrateParameters.osmoticPressure)
       : (concentrateTds * 0.76) / 1000;
+      
+// Fix permeateFlow (example using customFlux)
+   
+
+   
 
     // Ageing / fouling / SP increase: approximate Hydranautics behaviour
     const membraneAge = Math.max(Number(systemConfig.membraneAge) || 0, 0);
@@ -434,8 +449,16 @@ const App = () => {
     const aEffective = aBase * Math.pow(1 - fluxDeclinePct / 100, membraneAge);
     const spFactor = Math.pow(1 + spIncreasePct / 100, membraneAge);
 
+     const foulingFactorValue = Number.isFinite(foulingFactorRaw)
+  ? Math.min(Math.max(foulingFactorRaw, 0.35), 1)
+  : 1;
+
+    
+       const pressureTerm = (avgFlux / aEffective) * foulingFactorValue;
+    
     // Pump model expects a flux-like term; use GFD computed above.
-    const pressureTerm = (fluxGFD / (TCF * (aEffective || aBase))) * foulingFactor;
+    // const pressureTerm = (fluxGFD / (TCF * (aEffective || aBase))) * foulingFactor;
+   
     const pumpPressure = calcResults?.results?.feedPressure != null
       ? Number(calcResults.results.feedPressure)
       : (pressureTerm + osmoticP + 1.2) * spFactor;
@@ -453,7 +476,8 @@ const App = () => {
         const fluxDecimals = getFlowDecimals(flowUnit);
         return '0.' + '0'.repeat(fluxDecimals); // e.g., '0.00', '0.0', '0.000'
       }
-      return Number(value).toFixed(1); // 1 decimal when calculated
+      // Return 1 decimal place as requested for Average Flux display
+      return Number(value).toFixed(1);
     };
 
     const feedPhForCalc = Number(systemConfig.feedPh) || Number(waterData.ph) || 7.0;
@@ -526,16 +550,21 @@ const App = () => {
       tcf: TCF.toFixed(2),
       activeMembrane: activeMem,
       totalElements: totalElements,
+      
 
       calcFeedPressurePsi: calcResults?.results ? (Number(calcResults.results.feedPressure) * BAR_TO_PSI).toFixed(1) : '0.0',
       calcConcPressurePsi: calcResults?.results ? (Number(calcResults.results.concPressure) * BAR_TO_PSI).toFixed(1) : '0.0',
+
       calcFeedFlowGpm: calcResults?.results ? (Number(calcResults.results.feedFlowVessel) * M3H_TO_GPM).toFixed(2) : '0.00',
       calcConcFlowGpm: calcResults?.results ? (Number(calcResults.results.concFlowVessel) * M3H_TO_GPM).toFixed(2) : '0.00',
-      calcFluxGfd: calcResults?.results?.avgFlux ?? '0.0',
-      calcHighestFluxGfd: calcResults?.results?.highestFlux ?? '0.0',
+      calcFluxGfd: calcResults?.results?.calcFluxGfd ?? (Number(avgFlux)).toFixed(1),
+      calcHighestFluxGfd: calcResults?.results ? Number(calcResults.results.highestFlux).toFixed(1) : '0.0',
       calcHighestBeta: calcResults?.results?.highestBeta ?? '0.00',
+      customFluxWorkflow: calcResults?.customFluxWorkflow,
       stageResults,
       designWarnings: calcResults?.designWarnings || [],
+
+  
 
       permeateConcentration,
       concentrateConcentration,
