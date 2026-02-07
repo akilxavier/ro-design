@@ -266,16 +266,10 @@
       const concTds = projection?.concentrateParameters?.tds ?? 0;
       const permPh = projection?.permeateParameters?.ph ?? treatedFeedPh;
       const concPh = projection?.concentrateParameters?.ph ?? treatedFeedPh;
-      const feedPressurePsi = projection?.calcFeedPressureBar
-        ? (projection.calcFeedPressureBar * 14.5038).toFixed(1)
-        : '0.0';
-
-    const concPressurePsi = projection?.calcConcPressureBar
-        ? (projection.calcConcPressureBar * 14.5038).toFixed(1)
-        : '0.0';
+      const feedPressurePsi = projection?.results?.feedPressure ?? '0.0';
+      const concPressurePsi = projection?.results?.concPressure ?? '0.0';
       const flowDiagramReady = systemConfig.designCalculated && projection;
-      const econdFactor = 1.9095;
-      const tdsToEcond = (value) => Math.round((Number(value) || 0) * econdFactor);
+      const tdsToEcond = (value, factor = 1.97) => Math.round((Number(value) || 0) * factor);
       const handlePrintFlowDiagram = () => {
         if (!flowDiagramRef.current) return;
         const printWindow = window.open('', '_blank', 'width=1200,height=900');
@@ -780,11 +774,11 @@
                         </tr>
                         <tr>
                           <td style={{ border: '1px solid #c9d3de', padding: '6px', fontWeight: 'bold' }}>Econd (µS/cm)</td>
-                          <td style={{ border: '1px solid #c9d3de', padding: '6px' }}>{tdsToEcond(feedTds)}</td>
-                          <td style={{ border: '1px solid #c9d3de', padding: '6px' }}>{tdsToEcond(feedTds)}</td>
-                          <td style={{ border: '1px solid #c9d3de', padding: '6px' }}>{tdsToEcond(feedTds)}</td>
-                          <td style={{ border: '1px solid #c9d3de', padding: '6px' }}>{tdsToEcond(concTds)}</td>
-                          <td style={{ border: '1px solid #c9d3de', padding: '6px' }}>{tdsToEcond(permTds)}</td>
+                          <td style={{ border: '1px solid #c9d3de', padding: '6px' }}>{tdsToEcond(feedTds, 1.97)}</td>
+                          <td style={{ border: '1px solid #c9d3de', padding: '6px' }}>{tdsToEcond(feedTds, 1.97)}</td>
+                          <td style={{ border: '1px solid #c9d3de', padding: '6px' }}>{tdsToEcond(feedTds, 1.97)}</td>
+                          <td style={{ border: '1px solid #c9d3de', padding: '6px' }}>{tdsToEcond(concTds, 1.78)}</td>
+                          <td style={{ border: '1px solid #c9d3de', padding: '6px' }}>{tdsToEcond(permTds, 2.29)}</td>
                         </tr>
                       </tbody>
                     </table>
@@ -824,8 +818,6 @@
           {/* BOTTOM SECTION: CALCULATION RESULTS (VISIBLE ONLY AFTER RUN) */}
           {systemConfig.designCalculated && projection && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
-
-
               <div style={{ ...panelStyle, background: '#d9e4f0' }}>
                 <div style={headerStyle}>Calculation Results</div>
               <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.75rem', textAlign: 'center', background: 'white' }}>
@@ -839,7 +831,10 @@
                     <th style={{ border: '1px solid #ccc' }}>Conc (gpm)</th>
                     <th style={{ border: '1px solid #ccc' }}>Flux (gfd)</th>
                     <th style={{ border: '1px solid #ccc' }}>Highest flux (gfd)</th>
-                    <th style={{ border: '1px solid #ccc' }}>Highest beta</th>
+                    <th style={{ border: '1px solid #ccc' }}>
+                      Highest beta = <br/>
+                      Highest flux / Average flux
+                    </th>
                   </tr>
                 </thead>
                 <tbody>
@@ -868,8 +863,12 @@
                   ))}
                 </tbody>
               </table>
+              <div style={{ marginTop: '8px', fontSize: '0.65rem', color: '#555', fontStyle: 'italic', padding: '0 4px' }}>
+                Conc (gpm) = Concentrate flow per vessel, calculated as Total concentrate flow ÷ number of vessels in the selected stage (number of vessels depends on membrane type or user selection)
+              </div>
+              </div>
 
-              <div style={{ marginTop: '12px', background: 'white', padding: '8px', border: '1px solid #c2d1df' }}>
+            <div style={{ marginTop: '12px', background: 'white', padding: '8px', border: '1px solid #c2d1df' }}>
                 <div style={{ fontWeight: 'bold', marginBottom: '6px', fontSize: '0.75rem' }}>Permeate Concentration (mg/L)</div>
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(6, 1fr)', gap: '6px', fontSize: '0.7rem' }}>
                   <div>Ca: {projection.permeateConcentration?.ca ?? '0.000'}</div>
@@ -908,7 +907,11 @@
                   <div>pH: {projection.concentrateParameters?.ph ?? '0.0'}</div>
                   <div>TDS: {projection.concentrateParameters?.tds ?? '0.0'} mg/L</div>
                 </div>
+                {/* <div style={{ marginTop: '6px', fontSize: '0.65rem', color: '#555', fontStyle: 'italic' }}>
+                  concTds = TDSf / (1 - R), where R = Recovery (%) / 100
+                </div> */}
               </div>
+
               {projection.designWarnings?.length > 0 && (
                 <div style={{ marginTop: '15px', padding: '10px', background: '#f8d7da', border: '1px solid #f5c6cb', borderRadius: '4px', color: '#721c24', fontSize: '0.8rem', fontWeight: 'bold' }}>
                   <p style={{ margin: 0 }}>⚠️ Design Warnings:</p>
@@ -920,10 +923,9 @@
                 </div>
               )}
             </div>
-          </div>
-        )}
-      </div>
-    );
+          )}
+        </div>
+      );
     };
 
     export default SystemDesign;

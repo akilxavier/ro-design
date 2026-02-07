@@ -251,13 +251,7 @@ const App = () => {
     
     // Calculate flux - always calculate, but only display if designCalculated is true
     // Formula: Average Flux (gfd) = Permeate flow / (No. of Vessels × Membranes/Vessel × 0.0556)
-    const permeateFlowGpm = perTrainProduct_m3h * 4.402867;
-    const avgFlux =
-  totalElements > 0
-    ? permeateFlowGpm / (totalElements * 0.0556)
-    : 0;
-
-    let rawFluxGFD = calcResults?.results?.avgFlux ?? avgFlux;
+    let rawFluxGFD = calcResults?.results?.avgFlux ?? 0;
     let rawFluxLMH = rawFluxGFD * 1.699; // 1 GFD = 1.699 LMH
     
     if (!calcResults?.results) {
@@ -269,9 +263,9 @@ const App = () => {
         }
     }
     
-    // Only show flux value if designCalculated is true, otherwise show 0
-    const fluxGFD = systemConfig.designCalculated ? rawFluxGFD : 0;
-    const fluxLMH = systemConfig.designCalculated ? rawFluxLMH : 0;
+    // Always show flux value if possible
+    const fluxGFD = rawFluxGFD;
+    const fluxLMH = rawFluxLMH;
     
     // Debug logging to understand why flux is 0 (only log when calculated but still 0)
     if (systemConfig.designCalculated && rawFluxGFD === 0 && rawFluxLMH === 0) {
@@ -414,7 +408,11 @@ const App = () => {
       Object.entries(ionFeed).map(([key, value]) => {
         const rejection = getIonRejection(key);
         const passage = Math.max(1 - rejection / 100, 0);
-        return [key, formatConc(value * passage)];
+        const permVal = value * passage;
+        if (key === 'na' || key === 'cl') {
+          return [key, Number(permVal).toFixed(2)];
+        }
+        return [key, formatConc(permVal)];
       })
     );
     const concentrateConcentration = calcResults?.concentrateIons || Object.fromEntries(
@@ -429,19 +427,15 @@ const App = () => {
       : sumValues(concentrateConcentration);
     const osmoticP = calcResults?.concentrateParameters?.osmoticPressure != null
       ? Number(calcResults.concentrateParameters.osmoticPressure)
-      : (concentrateTds * 0.76) / 1000;
-      
-// Fix permeateFlow (example using customFlux)
-   
-
-   
+      // : (concentrateTds * 0.76) / 1000;
+      : concentrateTds * 0.0115;
 
     // Ageing / fouling / SP increase: approximate Hydranautics behaviour
     const membraneAge = Math.max(Number(systemConfig.membraneAge) || 0, 0);
     const fluxDeclinePct = Math.min(Math.max(Number(systemConfig.fluxDeclinePerYear) || 0, 0), 99);
     const spIncreasePct = Math.min(Math.max(Number(systemConfig.spIncreasePerYear) || 0, 0), 200);
     const foulingFactorRaw = Number(systemConfig.foulingFactor);
-    const foulingFactor = Number.isFinite(foulingFactorRaw)
+    const foulingFactorValue = Number.isFinite(foulingFactorRaw)
       ? Math.min(Math.max(foulingFactorRaw, 0.35), 1)
       : 1;
 
@@ -449,16 +443,15 @@ const App = () => {
     const aEffective = aBase * Math.pow(1 - fluxDeclinePct / 100, membraneAge);
     const spFactor = Math.pow(1 + spIncreasePct / 100, membraneAge);
 
-     const foulingFactorValue = Number.isFinite(foulingFactorRaw)
-  ? Math.min(Math.max(foulingFactorRaw, 0.35), 1)
-  : 1;
+    const permeateFlowGpm = perTrainProduct_m3h * 4.402867;
+    const avgFlux =
+    totalElements > 0
+      ? permeateFlowGpm / (totalElements * 0.0556)
+      : 0;
 
-    
-       const pressureTerm = (avgFlux / aEffective) * foulingFactorValue;
-    
     // Pump model expects a flux-like term; use GFD computed above.
     // const pressureTerm = (fluxGFD / (TCF * (aEffective || aBase))) * foulingFactor;
-   
+    const pressureTerm = (avgFlux / aEffective) * foulingFactorValue;
     const pumpPressure = calcResults?.results?.feedPressure != null
       ? Number(calcResults.results.feedPressure)
       : (pressureTerm + osmoticP + 1.2) * spFactor;
@@ -468,25 +461,18 @@ const App = () => {
     const powerKw = (pumpPressure * totalFeed_m3h) / (36.7 * 0.75);
     const monthlyEnergy = powerKw * 24 * 30 * Number(systemConfig.energyCostPerKwh);
 
-    // Format flux: Always show 0 with appropriate decimals based on unit when not calculated
-    // The actual value stays 0, only the decimal precision changes with unit
+    // Format flux: Return 1 decimal place as requested for Average Flux display
     const formatFlux = (value, isCalculated, flowUnit) => {
-      if (!isCalculated) {
-        // Match the decimal precision of the flow unit
-        const fluxDecimals = getFlowDecimals(flowUnit);
-        return '0.' + '0'.repeat(fluxDecimals); // e.g., '0.00', '0.0', '0.000'
-      }
-      // Return 1 decimal place as requested for Average Flux display
-      return Number(value).toFixed(1);
+      return Number(value || 0).toFixed(1);
     };
 
     const feedPhForCalc = Number(systemConfig.feedPh) || Number(waterData.ph) || 7.0;
     const permeatePh = calcResults?.permeateParameters?.ph != null
       ? Number(calcResults.permeateParameters.ph)
-      : Math.min(Math.max(feedPhForCalc - 1.1, 0), 14);
+      : Math.min(Math.max(feedPhForCalc - 1.69, 0), 14);
     const concentratePh = calcResults?.concentrateParameters?.ph != null
       ? Number(calcResults.concentrateParameters.ph)
-      : Math.min(Math.max(feedPhForCalc + Math.log10(CF) * 0.3, 0), 14);
+      : Math.min(Math.max(feedPhForCalc + Math.log10(CF), 0), 14);
 
     // Langelier Saturation Index (simplified, consistent with PreTreatment)
     const pCa = 5.0 - Math.log10(Math.max(getNumeric(concentrateConcentration.ca) * 2.5, 0.0001));
@@ -552,13 +538,13 @@ const App = () => {
       totalElements: totalElements,
       
 
-      calcFeedPressurePsi: calcResults?.results ? (Number(calcResults.results.feedPressure) * BAR_TO_PSI).toFixed(1) : '0.0',
-      calcConcPressurePsi: calcResults?.results ? (Number(calcResults.results.concPressure) * BAR_TO_PSI).toFixed(1) : '0.0',
+      calcFeedPressurePsi: calcResults?.results ? Number(calcResults.results.feedPressure).toFixed(1) : '0.0',
+      calcConcPressurePsi: calcResults?.results ? Number(calcResults.results.concPressure).toFixed(1) : '0.0',
 
       calcFeedFlowGpm: calcResults?.results ? (Number(calcResults.results.feedFlowVessel) * M3H_TO_GPM).toFixed(2) : '0.00',
       calcConcFlowGpm: calcResults?.results ? (Number(calcResults.results.concFlowVessel) * M3H_TO_GPM).toFixed(2) : '0.00',
-      calcFluxGfd: calcResults?.results?.calcFluxGfd ?? (Number(avgFlux)).toFixed(1),
-      calcHighestFluxGfd: calcResults?.results ? Number(calcResults.results.highestFlux).toFixed(1) : '0.0',
+      calcFluxGfd: calcResults?.results?.calcFluxGfd ?? '0.0',
+      calcHighestFluxGfd: calcResults?.results?.highestFlux ?? '0.0',
       calcHighestBeta: calcResults?.results?.highestBeta ?? '0.00',
       customFluxWorkflow: calcResults?.customFluxWorkflow,
       stageResults,
@@ -692,6 +678,22 @@ const App = () => {
     const tempF = ((Number(waterData.temp) || 25) * 9) / 5 + 32;
     const reportDate = new Date().toLocaleDateString();
     const M3H_TO_GPM = 4.402867;
+    const EQ_WEIGHTS = {
+      ca: 20.04,
+      mg: 12.15,
+      na: 23.0,
+      k: 39.1,
+      nh4: 18.04,
+      ba: 68.67,
+      sr: 43.81,
+      co3: 30.0,
+      hco3: 61.02,
+      so4: 48.03,
+      cl: 35.45,
+      f: 19.0,
+      no3: 62.0,
+      po4: 31.67
+    };
     const ionFeed = {
       na: Number(waterData.na) || 0,
       hco3: Number(waterData.hco3) || 0,
@@ -727,6 +729,46 @@ const App = () => {
     const concPh = Number(projection?.concentrateParameters?.ph ?? feedPh);
     const econdFactor = 1.9095;
     const toEcond = (value) => Math.round((Number(value) || 0) * econdFactor);
+    const toNumber = (value) => Number(value) || 0;
+    const formatCaCO3 = (key, value) => {
+      const eq = EQ_WEIGHTS[key];
+      if (!eq) return '0.00';
+      return (toNumber(value) * (50 / eq)).toFixed(2);
+    };
+    const cationKeys = ['ca', 'mg', 'na', 'k', 'nh4', 'ba', 'sr'];
+    const anionKeys = ['co3', 'hco3', 'so4', 'cl', 'f', 'no3', 'po4'];
+    const cationMeq = cationKeys.reduce((sum, key) => sum + (toNumber(waterData[key]) / (EQ_WEIGHTS[key] || 1)), 0);
+    const anionMeq = anionKeys.reduce((sum, key) => sum + (toNumber(waterData[key]) / (EQ_WEIGHTS[key] || 1)), 0);
+    const meqTotal = cationMeq + anionMeq;
+    const balanceErrorPct = meqTotal > 0 ? ((cationMeq - anionMeq) / meqTotal) * 100 : 0;
+    const analysisTdsKeys = [
+      'ca', 'mg', 'na', 'k', 'nh4', 'ba', 'sr',
+      'co3', 'hco3', 'so4', 'cl', 'f', 'no3', 'po4',
+      'sio2', 'b', 'co2'
+    ];
+    const analysisTds = analysisTdsKeys.reduce((sum, key) => sum + toNumber(waterData[key]), 0);
+    const analysisOsmoticPsi = analysisTds * 0.0115;
+    const analysisCaConc = toNumber(waterData.ca);
+    const analysisSo4Conc = toNumber(waterData.so4);
+    const analysisBaConc = toNumber(waterData.ba);
+    const analysisSrConc = toNumber(waterData.sr);
+    const analysisSio2Conc = toNumber(waterData.sio2);
+    const analysisPo4Conc = toNumber(waterData.po4);
+    const analysisFConc = toNumber(waterData.f);
+    const analysisPCa = 5.0 - Math.log10(Math.max(analysisCaConc * 2.5, 0.0001));
+    const analysisPAlk = 5.0 - Math.log10(Math.max(toNumber(waterData.hco3) * 0.82, 0.0001));
+    const analysisC = (Math.log10(Math.max(analysisTds, 1)) - 1) / 10 + (Number(waterData.temp) > 25 ? 2.0 : 2.3);
+    const analysisPhs = analysisC + analysisPCa + analysisPAlk;
+    const analysisLsi = (toNumber(waterData.ph) || 7) - analysisPhs;
+    const analysisCcpp = analysisLsi > 0 ? analysisLsi * 50 : 0;
+    const analysisSaturations = {
+      caSo4: (analysisCaConc * analysisSo4Conc) / 1000,
+      baSo4: (analysisBaConc * analysisSo4Conc) / 50,
+      srSo4: (analysisSrConc * analysisSo4Conc) / 2000,
+      sio2: (analysisSio2Conc / 120) * 100,
+      ca3po42: (analysisCaConc * analysisPo4Conc) / 100,
+      caF2: (analysisCaConc * analysisFConc) / 500
+    };
     const stageRows = (projection.stageResults || []).map((row) => {
       const feedM3h = Number(row.feedFlowM3h || 0);
       const concM3h = Number(row.concFlowM3h || 0);
@@ -790,6 +832,107 @@ const App = () => {
             <div><strong>Feed type:</strong> ${waterData.waterType || ''}</div>
             <div><strong>Pretreatment:</strong> ${waterData.pretreatment || 'Conventional'}</div>
             <div><strong>Average flux:</strong> ${projection.calcFluxGfd || '0.0'} gfd</div>
+          </div>
+
+          <div class="section">
+            <div class="section-title">Analysis - Feed Water Composition</div>
+            <table>
+              <thead>
+                <tr>
+                  <th>Ion</th>
+                  <th>mg/L</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr><td>Ca</td><td>${toNumber(waterData.ca).toFixed(2)}</td></tr>
+                <tr><td>Mg</td><td>${toNumber(waterData.mg).toFixed(2)}</td></tr>
+                <tr><td>Na</td><td>${toNumber(waterData.na).toFixed(2)}</td></tr>
+                <tr><td>K</td><td>${toNumber(waterData.k).toFixed(2)}</td></tr>
+                <tr><td>NH4</td><td>${toNumber(waterData.nh4).toFixed(2)}</td></tr>
+                <tr><td>Ba</td><td>${toNumber(waterData.ba).toFixed(2)}</td></tr>
+                <tr><td>Sr</td><td>${toNumber(waterData.sr).toFixed(2)}</td></tr>
+                <tr><td>CO3</td><td>${toNumber(waterData.co3).toFixed(2)}</td></tr>
+                <tr><td>HCO3</td><td>${toNumber(waterData.hco3).toFixed(2)}</td></tr>
+                <tr><td>SO4</td><td>${toNumber(waterData.so4).toFixed(2)}</td></tr>
+                <tr><td>Cl</td><td>${toNumber(waterData.cl).toFixed(2)}</td></tr>
+                <tr><td>F</td><td>${toNumber(waterData.f).toFixed(2)}</td></tr>
+                <tr><td>NO3</td><td>${toNumber(waterData.no3).toFixed(2)}</td></tr>
+                <tr><td>PO4</td><td>${toNumber(waterData.po4).toFixed(2)}</td></tr>
+                <tr><td>SiO2</td><td>${toNumber(waterData.sio2).toFixed(2)}</td></tr>
+                <tr><td>B</td><td>${toNumber(waterData.b).toFixed(2)}</td></tr>
+                <tr><td>CO2</td><td>${toNumber(waterData.co2).toFixed(2)}</td></tr>
+                <tr><td>Temperature (°C)</td><td>${toNumber(waterData.temp).toFixed(1)}</td></tr>
+                <tr><td>pH</td><td>${toNumber(waterData.ph).toFixed(2)}</td></tr>
+              </tbody>
+            </table>
+          </div>
+
+          <div class="section">
+            <div class="section-title">Analysis - Ionic Balance</div>
+            <table>
+              <thead>
+                <tr>
+                  <th>Total Cations (meq/L)</th>
+                  <th>Total Anions (meq/L)</th>
+                  <th>Balance Error (%)</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td>${cationMeq.toFixed(2)}</td>
+                  <td>${anionMeq.toFixed(2)}</td>
+                  <td>${balanceErrorPct.toFixed(2)}</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          <div class="section">
+            <div class="section-title">Analysis - Cations/Anions as CaCO3</div>
+            <table>
+              <thead>
+                <tr>
+                  <th>Cations</th>
+                  <th>mg/L as CaCO3</th>
+                  <th>Anions</th>
+                  <th>mg/L as CaCO3</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr><td>Ca</td><td>${formatCaCO3('ca', waterData.ca)}</td><td>CO3</td><td>${formatCaCO3('co3', waterData.co3)}</td></tr>
+                <tr><td>Mg</td><td>${formatCaCO3('mg', waterData.mg)}</td><td>HCO3</td><td>${formatCaCO3('hco3', waterData.hco3)}</td></tr>
+                <tr><td>Na</td><td>${formatCaCO3('na', waterData.na)}</td><td>SO4</td><td>${formatCaCO3('so4', waterData.so4)}</td></tr>
+                <tr><td>K</td><td>${formatCaCO3('k', waterData.k)}</td><td>Cl</td><td>${formatCaCO3('cl', waterData.cl)}</td></tr>
+                <tr><td>NH4</td><td>${formatCaCO3('nh4', waterData.nh4)}</td><td>F</td><td>${formatCaCO3('f', waterData.f)}</td></tr>
+                <tr><td>Ba</td><td>${formatCaCO3('ba', waterData.ba)}</td><td>NO3</td><td>${formatCaCO3('no3', waterData.no3)}</td></tr>
+                <tr><td>Sr</td><td>${formatCaCO3('sr', waterData.sr)}</td><td>PO4</td><td>${formatCaCO3('po4', waterData.po4)}</td></tr>
+                <tr><td><strong>Total, meq/L</strong></td><td><strong>${cationMeq.toFixed(2)}</strong></td><td><strong>Total, meq/L</strong></td><td><strong>${anionMeq.toFixed(2)}</strong></td></tr>
+              </tbody>
+            </table>
+          </div>
+
+          <div class="section">
+            <div class="section-title">Analysis - Saturations</div>
+            <table>
+              <thead>
+                <tr>
+                  <th>Parameter</th>
+                  <th>Value</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr><td>Calculated TDS (mg/L)</td><td>${analysisTds.toFixed(0)}</td></tr>
+                <tr><td>Osmotic pressure (psi)</td><td>${analysisOsmoticPsi.toFixed(1)}</td></tr>
+                <tr><td>CaSO4 (%)</td><td>${analysisSaturations.caSo4.toFixed(1)}</td></tr>
+                <tr><td>BaSO4 (%)</td><td>${analysisSaturations.baSo4.toFixed(1)}</td></tr>
+                <tr><td>SrSO4 (%)</td><td>${analysisSaturations.srSo4.toFixed(1)}</td></tr>
+                <tr><td>CaF2 (%)</td><td>${analysisSaturations.caF2.toFixed(1)}</td></tr>
+                <tr><td>SiO2 (%)</td><td>${analysisSaturations.sio2.toFixed(1)}</td></tr>
+                <tr><td>Ca3(PO4)2 SI</td><td>${analysisSaturations.ca3po42.toFixed(2)}</td></tr>
+                <tr><td>CCPP (mg/L CaCO3)</td><td>${analysisCcpp.toFixed(2)}</td></tr>
+                <tr><td>LSI</td><td>${analysisLsi.toFixed(2)}</td></tr>
+              </tbody>
+            </table>
           </div>
 
           <div class="section">
