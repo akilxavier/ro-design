@@ -133,6 +133,26 @@ const App = () => {
   const [pretreatment, setPretreatment] = useState({ antiscalantDose: 3.5, sbsDose: 2.0 });
   const [postTreatment, setPostTreatment] = useState({ causticDose: 2.0 });
   
+  const applyTdsProfile = (tdsValue) => {
+  const tds = Number(tdsValue) || 0;
+  if (tds <= 0) return;
+
+  const EW_NA = 23;
+  const EW_CL = 35.45;
+
+  const totalMeq = tds / (EW_NA + EW_CL);
+
+  const na = totalMeq * EW_NA;
+  const cl = totalMeq * EW_CL;
+
+  setWaterData(prev => ({
+    ...prev,
+    calculatedTds: tds,
+    na: Number(na.toFixed(2)),
+    cl: Number(cl.toFixed(2))
+  }));
+};
+
   const [projection, setProjection] = useState({ 
     fluxGFD: 0, pumpPressure: 0, monthlyEnergyCost: 0, permeateFlow: 0 
   });
@@ -1403,8 +1423,10 @@ const App = () => {
           <SystemDesign
             membranes={membranes}
             systemConfig={systemConfig}
+            setWaterData={setWaterData} 
             setSystemConfig={setSystemConfig}
             projection={projection}
+            applyTdsProfile={applyTdsProfile}
             waterData={waterData}
             onRun={() => setSystemConfig(c => ({ ...c, designCalculated: true }))}
           />
@@ -1414,6 +1436,7 @@ const App = () => {
           <Report 
             waterData={waterData} 
             systemConfig={systemConfig} 
+            applyTdsProfile={applyTdsProfile} 
             projection={projection} 
             pretreatment={pretreatment}
             postTreatment={postTreatment}
