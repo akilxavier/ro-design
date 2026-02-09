@@ -228,6 +228,9 @@ const App = () => {
     const perTrainProduct_gpd = perTrainProduct_m3h * M3H_TO_GPD;
     const M3H_TO_GPM = 4.402867;
     const BAR_TO_PSI = 14.5038;
+    
+    /// demounit conversion for feed/conc flow and pressure for calculator inputs
+    const psi = calcResults?.results?.feedPressure != null
 
     const pass1Stages = Math.min(Math.max(Number(systemConfig.pass1Stages) || 1, 1), 6);
     const activeStages = systemConfig.stages?.slice(0, pass1Stages) || [];
