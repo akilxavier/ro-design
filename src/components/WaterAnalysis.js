@@ -1,7 +1,7 @@
 import React, { useMemo } from 'react';
 
 const WaterAnalysis = ({ waterData, setWaterData }) => {
-  
+
   // --- TECHNICAL CONSTANTS (Equivalent Weights) ---
   const EQ_WEIGHTS = {
     ca: 20.04,
@@ -21,70 +21,70 @@ const WaterAnalysis = ({ waterData, setWaterData }) => {
   };
 
   const WATER_TYPE_PROFILES = {
-//     'Municipal Waste': {
-//       type: 'absolute',
-//       ions: {
-//         na: 786.98,
-//         cl: 1212.92,
-//         hco3: 0.5
-//       }
-//     },
-//     'Brackish Well Non-Fouling': {
-//         type: 'ratio',
-//       ions: {
-//         ca: 0.12,
-//         mg: 0.05,
-//         na: 0.32,
-//         k: 0.01,
-//         hco3: 0.18,
-//         so4: 0.07,
-//         cl: 0.23,
-//         no3: 0.01,
-//         sio2: 0.01
-//     }
-//       },
+    //     'Municipal Waste': {
+    //       type: 'absolute',
+    //       ions: {
+    //         na: 786.98,
+    //         cl: 1212.92,
+    //         hco3: 0.5
+    //       }
+    //     },
+    //     'Brackish Well Non-Fouling': {
+    //         type: 'ratio',
+    //       ions: {
+    //         ca: 0.12,
+    //         mg: 0.05,
+    //         na: 0.32,
+    //         k: 0.01,
+    //         hco3: 0.18,
+    //         so4: 0.07,
+    //         cl: 0.23,
+    //         no3: 0.01,
+    //         sio2: 0.01
+    //     }
+    //       },
 
-//      'Brackish Well High-Fouling': {
-//     ions: {
-//       ca: 0.07,
-//       mg: 0.04,
-//       na: 0.25,
-//       k: 0.00,
-//       hco3: 0.05,
-//       so4: 0.04,
-//       cl: 0.62,
-//       no3: 0.00,
-//       sio2: 0.00
-//     }
-// },
-//     'Brackish Surface': {
-//       type: 'ratio',
-//       ions: {
-//         ca: 0.1,
-//         mg: 0.06,
-//         na: 0.3,
-//         k: 0.01,
-//         hco3: 0.2,
-//         so4: 0.1,
-//         cl: 0.21,
-//         no3: 0.01,
-//         sio2: 0.01
-//       }
-//     },
-//     'Sea Well': {
-//       type: 'ratio',
-//       ions: {
-//         ca: 0.015,
-//         mg: 0.05,
-//         na: 0.305,
-//         k: 0.01,
-//         hco3: 0.005,
-//         so4: 0.045,
-//         cl: 0.565,
-//         no3: 0.002,
-//         sio2: 0.003
-//       }
-//     },
+    //      'Brackish Well High-Fouling': {
+    //     ions: {
+    //       ca: 0.07,
+    //       mg: 0.04,
+    //       na: 0.25,
+    //       k: 0.00,
+    //       hco3: 0.05,
+    //       so4: 0.04,
+    //       cl: 0.62,
+    //       no3: 0.00,
+    //       sio2: 0.00
+    //     }
+    // },
+    //     'Brackish Surface': {
+    //       type: 'ratio',
+    //       ions: {
+    //         ca: 0.1,
+    //         mg: 0.06,
+    //         na: 0.3,
+    //         k: 0.01,
+    //         hco3: 0.2,
+    //         so4: 0.1,
+    //         cl: 0.21,
+    //         no3: 0.01,
+    //         sio2: 0.01
+    //       }
+    //     },
+    //     'Sea Well': {
+    //       type: 'ratio',
+    //       ions: {
+    //         ca: 0.015,
+    //         mg: 0.05,
+    //         na: 0.305,
+    //         k: 0.01,
+    //         hco3: 0.005,
+    //         so4: 0.045,
+    //         cl: 0.565,
+    //         no3: 0.002,
+    //         sio2: 0.003
+    //       }
+    //     },
     'Sea Surface': {
       type: 'absolute',
       ions: {
@@ -131,64 +131,64 @@ const WaterAnalysis = ({ waterData, setWaterData }) => {
   };
 
   const applyTdsProfile = (tdsValue) => {
-  const tds = Number(tdsValue) || 0;
-  if (tds <= 0) return;
+    const tds = Number(tdsValue) || 0;
+    if (tds <= 0) return;
 
-  // Equivalent weights
-  const EW_NA = EQ_WEIGHTS.na;   // 23
-  const EW_CL = EQ_WEIGHTS.cl;   // 35.45
+    // Equivalent weights
+    const EW_NA = EQ_WEIGHTS.na;   // 23
+    const EW_CL = EQ_WEIGHTS.cl;   // 35.45
 
-  // Step 1: calculate total meq/L (Na–Cl water)
-  const totalMeq = tds / (EW_NA + EW_CL);
+    // Step 1: calculate total meq/L (Na–Cl water)
+    const totalMeq = tds / (EW_NA + EW_CL);
 
-  // Step 2: convert meq/L → mg/L
-  const na = totalMeq * EW_NA;
-  const cl = totalMeq * EW_CL;
+    // Step 2: convert meq/L → mg/L
+    const na = totalMeq * EW_NA;
+    const cl = totalMeq * EW_CL;
 
-  const updated = {
-    ca: 0,
-    mg: 0,
-    k: 0,
-    hco3: 0,
-    so4: 0,
-    no3: 0,
-    sio2: 0,
+    const updated = {
+      ca: 0,
+      mg: 0,
+      k: 0,
+      hco3: 0,
+      so4: 0,
+      no3: 0,
+      sio2: 0,
 
-    // calculated ions
-    na: Number(na.toFixed(2)),
-    cl: Number(cl.toFixed(2)),
+      // calculated ions
+      na: Number(na.toFixed(2)),
+      cl: Number(cl.toFixed(2)),
 
-    // preserve user-entered trace species
-    nh4: waterData.nh4,
-    sr: waterData.sr,
-    ba: waterData.ba,
-    po4: waterData.po4,
-    f: waterData.f,
-    b: waterData.b,
-    co2: waterData.co2,
-    co3: waterData.co3
+      // preserve user-entered trace species
+      nh4: waterData.nh4,
+      sr: waterData.sr,
+      ba: waterData.ba,
+      po4: waterData.po4,
+      f: waterData.f,
+      b: waterData.b,
+      co2: waterData.co2,
+      co3: waterData.co3
+    };
+
+    setWaterData({
+      ...waterData,
+      calculatedTds: Math.round(tds),
+      ...updated
+    });
   };
-
-  setWaterData({
-    ...waterData,
-    calculatedTds: Math.round(tds),
-    ...updated
-  });
-};
 
 
   // --- LOGIC: IONIC BALANCE CALCULATION ---
   const balanceResults = useMemo(() => {
-    const cations = 
-      (Number(waterData.ca) / EQ_WEIGHTS.ca) + 
-      (Number(waterData.mg) / EQ_WEIGHTS.mg) + 
-      (Number(waterData.na) / EQ_WEIGHTS.na) + 
+    const cations =
+      (Number(waterData.ca) / EQ_WEIGHTS.ca) +
+      (Number(waterData.mg) / EQ_WEIGHTS.mg) +
+      (Number(waterData.na) / EQ_WEIGHTS.na) +
       (Number(waterData.k) / EQ_WEIGHTS.k);
 
-    const anions = 
-      (Number(waterData.hco3) / EQ_WEIGHTS.hco3) + 
-      (Number(waterData.so4) / EQ_WEIGHTS.so4) + 
-      (Number(waterData.cl) / EQ_WEIGHTS.cl) + 
+    const anions =
+      (Number(waterData.hco3) / EQ_WEIGHTS.hco3) +
+      (Number(waterData.so4) / EQ_WEIGHTS.so4) +
+      (Number(waterData.cl) / EQ_WEIGHTS.cl) +
       (Number(waterData.no3) / EQ_WEIGHTS.no3);
 
     const totalSum = cations + anions;
@@ -260,7 +260,7 @@ const WaterAnalysis = ({ waterData, setWaterData }) => {
   // --- LOGIC: AUTO-BALANCE FEATURE ---
   const handleAutoBalance = () => {
     const diffMeq = balanceResults.cations - balanceResults.anions;
-    
+
     if (diffMeq > 0) {
       // Too many cations (+), add Chloride (-) to balance
       const neededClMgL = Number(waterData.cl) + (diffMeq * EQ_WEIGHTS.cl);
@@ -296,7 +296,6 @@ const WaterAnalysis = ({ waterData, setWaterData }) => {
     }
     setWaterData({ ...waterData, [key]: val });
   };
-
   // --- STYLING ---
   const cardStyle = { background: 'white', padding: '20px', borderRadius: '8px', border: '1px solid #c2d1df', boxShadow: '0 2px 4px rgba(0,0,0,0.05)' };
   const inputGroupStyle = { display: 'flex', flexDirection: 'column', gap: '5px' };
@@ -305,19 +304,19 @@ const WaterAnalysis = ({ waterData, setWaterData }) => {
 
   return (
     <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: '20px' }}>
-      
+
       {/* LEFT COLUMN: ION INPUTS */}
       <div style={cardStyle}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px' }}>
           <h3 style={{ margin: 0, color: '#002f5d' }}>Feed Water Composition</h3>
           <div style={{ display: 'flex', gap: '10px' }}>
-            <button 
+            <button
               onClick={handleAutoBalance}
               style={{ background: '#3498db', color: 'white', border: 'none', padding: '8px 12px', borderRadius: '4px', cursor: 'pointer', fontSize: '0.8rem' }}
             >
               ⚖️ Auto-Balance (Na/Cl)
             </button>
-            <button 
+            <button
               onClick={handleReset}
               style={{ background: '#e74c3c', color: 'white', border: 'none', padding: '8px 12px', borderRadius: '4px', cursor: 'pointer', fontSize: '0.8rem' }}
             >
@@ -404,13 +403,13 @@ const WaterAnalysis = ({ waterData, setWaterData }) => {
           <div style={inputGroupStyle}><label style={labelStyle}>Magnesium (Mg)</label><input type="number" value={waterData.mg} onChange={(e) => handleInputChange('mg', e.target.value)} /></div>
           <div style={inputGroupStyle}><label style={labelStyle}>Sodium (Na)</label><input type="number" value={waterData.na} onChange={(e) => handleInputChange('na', e.target.value)} /></div>
           <div style={inputGroupStyle}><label style={labelStyle}>Potassium (K)</label><input type="number" value={waterData.k} onChange={(e) => handleInputChange('k', e.target.value)} /></div>
-          
+
           {/* ANIONS */}
           <div style={inputGroupStyle}><label style={labelStyle}>Bicarbonate (HCO3)</label><input type="number" value={waterData.hco3} onChange={(e) => handleInputChange('hco3', e.target.value)} /></div>
           <div style={inputGroupStyle}><label style={labelStyle}>Sulfate (SO4)</label><input type="number" value={waterData.so4} onChange={(e) => handleInputChange('so4', e.target.value)} /></div>
           <div style={inputGroupStyle}><label style={labelStyle}>Chloride (Cl)</label><input type="number" value={waterData.cl} onChange={(e) => handleInputChange('cl', e.target.value)} /></div>
           <div style={inputGroupStyle}><label style={labelStyle}>Nitrate (NO3)</label><input type="number" value={waterData.no3} onChange={(e) => handleInputChange('no3', e.target.value)} /></div>
-          
+
           {/* NEUTRALS */}
           <div style={inputGroupStyle}><label style={labelStyle}>Silica (SiO2)</label><input type="number" value={waterData.sio2} onChange={(e) => handleInputChange('sio2', e.target.value)} /></div>
           <div style={inputGroupStyle}><label style={labelStyle}>Temperature (°C)</label><input type="number" value={waterData.temp} onChange={(e) => handleInputChange('temp', e.target.value)} /></div>
@@ -539,7 +538,7 @@ const WaterAnalysis = ({ waterData, setWaterData }) => {
       {/* RIGHT COLUMN: VALIDATION PANEL */}
       <div style={{ ...cardStyle, background: '#f8fbff' }}>
         <h4 style={{ marginTop: 0, color: '#002f5d' }}>Ionic Balance</h4>
-        
+
         <div style={{ marginBottom: '15px' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.9rem' }}>
             <span>Total Cations:</span>
